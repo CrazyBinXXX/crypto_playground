@@ -29,6 +29,7 @@ class SimuMarket:
         self.df_data = pd.read_csv(data_path)
         self.np_data = np.array(self.df_data)
         self.data_shape = self.df_data.shape
+        self.iter_idx = 0
         self.add_MA()
 
     def load_df(self, df: pd.DataFrame):
@@ -39,6 +40,7 @@ class SimuMarket:
         self.df_data = df
         self.np_data = np.array(self.df_data)
         self.data_shape = self.df_data.shape
+        self.iter_idx = 0
         self.add_MA()
 
     def add_MA(self, added_MA=None):
