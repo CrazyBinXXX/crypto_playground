@@ -71,6 +71,8 @@ class SimuMarket:
 
 
 if __name__ == "__main__":
+    print("I love mom")
+    exit()
     sm = SimuMarket()
     data_path = ROOT_PATH + "/dataHouse/ETHUSDT_2021-09-01-2021-09-30_1m.csv"
     sm.load_data(data_path)

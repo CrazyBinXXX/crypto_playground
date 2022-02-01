@@ -4,6 +4,7 @@ It contains metrics which reflect the performance of trading
 and functions for stats calc.
 """
 from scipy.stats import linregress
+from termcolor import colored
 
 
 class SimuReport:
@@ -26,7 +27,8 @@ class SimuReport:
         self.sharp_ratio = self.roi / self.volatility
         self.max_dropdown = SimuReport.calc_max_dropdown(data_arr)
 
-    def pretty_print(self):
+    def pretty_print(self, c):
+        print(colored(c))
         print("=====================SCORE BOARD=====================")
         print("Return of Investment: {}%".format(self.number2percentage(self.roi)))
         print("Correlation Coefficient: {}".format(self.correlation_coefficient))

@@ -10,6 +10,7 @@ root_url = 'https://api.binance.com/api/v1/klines'
 symbol = 'ETHUSDT'
 interval = '1m'
 
+
 def fetchHistPrices(symbol, interval, start_timestamp, limit=500):
     url = root_url + '?symbol=' + symbol + '&interval=' + interval + '&startTime=' + str(start_timestamp) + '&limit=' + str(limit)
     data = json.loads(requests.get(url).text)
