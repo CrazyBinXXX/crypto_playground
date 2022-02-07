@@ -32,7 +32,7 @@ def downside_risk(rets) -> float:
 
 # calculate annualized sharpe ratio, need # of mintute as frequency input
 def sharpe(rets, minute_freq, rf:float = 0.0, downside:bool = False, trading_days:int = 365) -> float:
-    scalar = trading_days * 24.0 / minute_freq # used for annualizing
+    scalar = trading_days * 24.0 * 60.0 / minute_freq # used for annualizing
     if downside:
         return (np.mean(rets) - rf) / downside_risk(rets) * np.sqrt(scalar)
     return (np.mean(rets) - rf) / np.std(rets) * np.sqrt(scalar)
