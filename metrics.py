@@ -1,13 +1,22 @@
 # performance metrics
-# Performance metrics functions using a list of returns as input argument
+# performance metric functions using returns as input argument
 
-# compute the path of wealth using rets
+import numpy as np
+import matplotlib.pyplot as plt
+
+# compute the path (growth) of investment using rets
 def path(rets):
     rets_copy = [ret for ret in rets]
     rets_copy[0] += 1
     for i in range(1, len(rets_copy)):
         rets_copy[i] = rets_copy[i-1] * (1+rets_copy[i])
     return rets_copy
+
+# plot the path (growth) of investment using rets
+def plot_path(rets):
+    wealth = path(rets)
+    plt.plot(wealth)
+    plt.show()
 
 # cumulative return
 def cumul_ret(rets) -> float:
@@ -34,3 +43,4 @@ def max_drawdown(rets):
         currentSum = min(rets[i], rets[i] + currentSum)
         maxDrawdown = min(maxDrawdown, currentSum)
     return np.exp(maxDrawdown) - 1.0
+
