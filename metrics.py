@@ -30,11 +30,12 @@ def downside_risk(rets) -> float:
         raise Exception("No downside risk.")
     return np.std(rets) 
 
-# calculate sharpe ratio
-def sharpe(rets, rf:float = 0.0, downside:bool = False) -> float:
+# calculate annualized sharpe ratio, need # of mintute as frequency input
+def sharpe(rets, minute_freq, rf:float = 0.0, downside:bool = False, trading_days:int = 365) -> float:
+    scalar = trading_days * 24.0 / minute_freq # used for annualizing
     if downside:
-        return (np.mean(rets) - rf) / downside_risk(rets)
-    return (np.mean(rets) - rf) / np.std(rets)
+        return (np.mean(rets) - rf) / downside_risk(rets) * np.sqrt(scalar)
+    return (np.mean(rets) - rf) / np.std(rets) * np.sqrt(scalar)
 
 def max_drawdown(rets):
     rets = [np.log(ret+1.0) for ret in rets]
