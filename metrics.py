@@ -26,7 +26,7 @@ def cumul_ret(rets) -> float:
 # stdev considering only negative returns
 def downside_risk(rets) -> float:
     rets = [ret for ret in rets if ret < 0.0]
-    if not returns:
+    if not rets:
         raise Exception("No downside risk.")
     return np.std(rets) 
 
