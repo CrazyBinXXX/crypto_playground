@@ -1,27 +1,32 @@
 # performance metrics
-# performance metric functions using returns as input argument
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 # compute the path (growth) of investment using rets
 def path(rets):
-    rets_copy = [ret for ret in rets]
-    rets_copy[0] += 1
+    rets_copy = rets.copy()
+    rets_copy[0] += 1.0
     for i in range(1, len(rets_copy)):
         rets_copy[i] = rets_copy[i-1] * (1+rets_copy[i])
     return rets_copy
 
 # plot the path (growth) of investment using rets
 def plot_path(rets):
-    wealth = path(rets)
+    wealth = [value for value in path(rets)]
     plt.plot(wealth)
+    plt.xticks(ticks=range(len(wealth))[::len(wealth)//2-1], labels = rets.index.values[::len(rets)//2-1])
     plt.show()
 
 # cumulative return
 def cumul_ret(rets) -> float:
     rets = [ret + 1 for ret in rets]
     return np.prod(rets) - 1.0
+
+# annualized return
+def annual_ret(rets, minute_freq, trading_days:int = 365) -> float:
+    scalar = trading_days * 24.0 * 60.0 / minute_freq # used for annualizing
+    return (1.0 + cumul_ret(rets)) ** (scalar / len(rets)) - 1.0
 
 # stdev considering only negative returns
 def downside_risk(rets) -> float:
@@ -32,7 +37,7 @@ def downside_risk(rets) -> float:
 
 # calculate annualized sharpe ratio, need # of mintute as frequency input
 def sharpe(rets, minute_freq, rf:float = 0.0, downside:bool = False, trading_days:int = 365) -> float:
-    scalar = trading_days * 24.0 * 60.0 / minute_freq # used for annualizing
+    scalar = trading_days * 24.0 * 60 / minute_freq # used for annualizing
     if downside:
         return (np.mean(rets) - rf) / downside_risk(rets) * np.sqrt(scalar)
     return (np.mean(rets) - rf) / np.std(rets) * np.sqrt(scalar)
