@@ -15,6 +15,7 @@ class BollingStrategy(BaseStrategy):
         print('Adding lines......')
         self.market.add_bollings()
         print('Adding finished')
+        self.trade_num = 0
 
     def reset(self):
         self.hold = False
@@ -23,20 +24,31 @@ class BollingStrategy(BaseStrategy):
     def buy_signal(self, new_data):
         return (not self.hold) and (new_data['short_signal'])
 
-    def sell_signal(self, new_data):
-        return self.hold and self.can_sell and (new_data['stop_profit_signal'])
+    def take_profit_signal(self, new_data):
+        take_profit = self.hold and self.can_sell and (new_data['stop_profit_signal'])
+        return take_profit
+
+    def stop_loss_signal(self, new_data):
+        stop_loss = self.hold and (new_data['stop_loss_signal'])
+        return stop_loss
 
     def step(self):
         new_data = self.market.get_next_data()
-        print(self.account.cash, self.account.positions, self.account.mortgage)
+        # print(self.account.cash, self.account.positions, self.account.mortgage)
         if self.hold and new_data['touch_bottom']:
             self.can_sell = True
         if self.buy_signal(new_data):
             self.account.short_all_at_price('ETH', new_data['bolling_m'])
             self.hold = True
             self.can_sell = False
-        if self.sell_signal(new_data):
+        elif self.take_profit_signal(new_data):
             self.account.close_all_at_price('ETH', new_data['bolling_1l'])
+            self.trade_num += 1
+            self.hold = False
+            self.can_sell = False
+        elif self.stop_loss_signal(new_data):
+            self.account.close_all_at_price('ETH', new_data['bolling_1u'])
+            self.trade_num += 1
             self.hold = False
             self.can_sell = False
         return 0

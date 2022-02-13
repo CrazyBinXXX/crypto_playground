@@ -5,12 +5,14 @@ and functions for stats calc.
 """
 from scipy.stats import linregress
 from termcolor import colored
+import pandas as pd
 
 
 class SimuReport:
     """
     This class contains trading stats metics & functions to calc.
     """
+
     def __init__(self, data_arr):
         self.roi = 0
         self.curve_slope = 0
@@ -36,6 +38,12 @@ class SimuReport:
         print("Sharp Ratio: {}".format(self.sharp_ratio))
         print("Max Dropdown: {}%".format(self.number2percentage(self.max_dropdown)))
         print("=========================END=========================")
+
+    def to_df(self):
+        return pd.DataFrame(data={'ROI': [self.number2percentage(self.roi)], 'Corr': [self.correlation_coefficient],
+                                  'Volatility': [self.number2percentage(self.volatility)],
+                                  'Sharp Ratio': [self.sharp_ratio],
+                                  'Max Dropdown': [self.number2percentage(self.max_dropdown)]})
 
     @staticmethod
     def number2percentage(num):

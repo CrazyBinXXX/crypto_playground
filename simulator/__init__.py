@@ -41,12 +41,14 @@ class Simulator:
         pass
 
     def heavy_tests(self, n=100):
-        norm_sr, hist_sr, hedge_sr = [], [], []
+        norm_sr, hist_sr, hedge_sr = pd.DataFrame(columns=['ROI', 'Corr', 'Volatility', 'Sharp Ratio', 'Max Dropdown']),\
+                                     pd.DataFrame(columns=['ROI', 'Corr', 'Volatility', 'Sharp Ratio', 'Max Dropdown']),\
+                                     pd.DataFrame(columns=['ROI', 'Corr', 'Volatility', 'Sharp Ratio', 'Max Dropdown'])
         for i in range(n):
             norm_price, hist_asset, hedge_price, norm_report, hist_report, hedge_report = self.backtest()
-            norm_sr.append(norm_report.sharp_ratio)
-            hist_sr.append(hist_report.sharp_ratio)
-            hedge_sr.append(hedge_report.sharp_ratio)
+            norm_sr = norm_sr.append(norm_report.to_df(), ignore_index=True)
+            hist_sr = hist_sr.append(hist_report.to_df(), ignore_index=True)
+            hedge_sr = hedge_sr.append(hedge_report.to_df(), ignore_index=True)
         return norm_sr, hist_sr, hedge_sr
 
     def backtest(self, init_cash=10000, init_positions=None):
@@ -56,24 +58,27 @@ class Simulator:
         self.strategy.account.set_init_cash(init_cash)
         self.strategy.account.init_positions = init_positions
         self.strategy.account.positions = init_positions
+        self.strategy.account.mortgage = 0
         hist_asset = []
         try:
             i = 0
             while True:
-                if i % 1000 == 0:
-                    print('STEP: {}'.format(i))
+                # if i % 1000 == 0:
+                #     print('STEP: {}'.format(i))
                 i += 1
                 end = self.strategy.step()
                 hist_asset.append(self.strategy.account.get_total_asset())
         except SimulationEndException as e:
             print(e)
         print("BACKTEST END")
+        print(self.strategy.trade_num)
+        print(self.strategy.account.trading_fee)
         eth_price = self.strategy.market.get_symbol_price_array()
         norm_price = eth_price / eth_price[0] * 10000
         hedge_price = (hist_asset + (20000 - norm_price)) / 2
         SimuReport(norm_price).pretty_print("Standard")
         SimuReport(hist_asset).pretty_print("Strat")
-        SimuReport(hedge_price).pretty_print("Hedge")
+        # SimuReport(hedge_price).pretty_print("Hedge")
         return norm_price, hist_asset, hedge_price, \
                SimuReport(norm_price), SimuReport(hist_asset), SimuReport(hedge_price)
 
@@ -100,21 +105,27 @@ class Simulator:
         canvas.plot(data_arr, 'g')
 
 if __name__ == "__main__":
-    DATA_PATH = ROOT_PATH + "/dataHouse/ETHUSDT_2021-06-01-2021-12-31_1m.csv"
+    DATA_PATH = ROOT_PATH + "/dataHouse/ETHUSDT_2021-01-01-2021-12-31_15m.csv"
     data = pd.read_csv(DATA_PATH)
     strat = BollingStrategy()
     s = Simulator(data, strat)
-    # norm_price, hist_asset, hedge_price, norm_report, hist_report, hedge_report = s.backtest()
-    # Simulator.plot_chart(norm_price, hist_asset, plt)
-    # plt.show()
-    # exit()
-
-    norm_sr, hist_sr, hedge_sr = s.heavy_tests(100)
-    norm_sr = np.array(norm_sr) * 100
-    hist_sr = np.array(hist_sr)
-    hedge_sr = np.array(hedge_sr)
-    figure, axis = plt.subplots(nrows=3, ncols=1)
-    Simulator.plot_histagram(norm_sr, axis[0])
-    Simulator.plot_histagram(hist_sr, axis[1])
-    Simulator.plot_histagram(hedge_sr, axis[2])
+    norm_price, hist_asset, hedge_price, norm_report, hist_report, hedge_report = s.backtest()
+    Simulator.plot_chart(norm_price, hist_asset, plt)
     plt.show()
+    exit()
+
+    norm_reports, hist_reports, hedge_reports = s.heavy_tests(n=200)
+    # figure, axis = plt.subplots(nrows=2, ncols=1)
+    # Simulator.plot_histogram(norm_reports['Sharp Ratio'].values, axis[0])
+    # Simulator.plot_histogram(hist_reports['Sharp Ratio'].values, axis[1])
+    # Simulator.plot_histogram(hedge_reports['Sharp Ratio'].values, axis[2])
+    rename_dict = {}
+    for each in list(norm_reports.columns):
+        rename_dict[each] = each + ' Standard'
+    norm_reports = norm_reports.rename(index=str, columns=rename_dict)
+    hist_reports.index = norm_reports.index
+    final_reports = norm_reports.merge(hist_reports, left_index=True, right_index=True)
+    final_reports = final_reports.reindex(sorted(final_reports.columns), axis=1)
+    strat_name = 'bolling001'
+    final_reports.to_csv("./simulationResults/{0}_{1}_{2}-{3}.csv".format(strat_name, 'ETH', '2021-01-01', '2021-12-31'))
+    # plt.show()

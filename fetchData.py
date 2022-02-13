@@ -35,6 +35,18 @@ def fetchHistPricesOneMinOneDay(symbol, start_date : dt.datetime):
       result_df = pd.concat([result_df, ret_df])
   return result_df
 
+def fetchHistPrices15MinOneYear(symbol, start_date : dt.datetime):
+  start_timestamp = int(time.mktime(start_date.timetuple()) * 1000)
+  interval_timestamp = 15 * 60 * 1000
+  result_df = None
+  for i in range(365 * 24 * (60 // 15) // 480):
+    ret_df = fetchHistPrices(symbol, '15m', start_timestamp + i * interval_timestamp * 480, limit=480)
+    if i == 0:
+      result_df = ret_df
+    else:
+      result_df = pd.concat([result_df, ret_df])
+  return result_df
+
 def fetchHistPriceOneMinPeriod(symbol, start_date : dt.datetime, end_date : dt.datetime):
   cur_date = start_date
   result_df = None
@@ -53,8 +65,9 @@ def fetchHistPriceOneMinPeriod(symbol, start_date : dt.datetime, end_date : dt.d
 def strToDate(date_str):
   return dt.datetime.strptime(date_str, "%Y-%m-%d")
 
+
 if __name__ == "__main__":
-    start_date = strToDate("2021-06-01")
+    start_date = strToDate("2021-01-01")
     end_date = strToDate("2021-12-31")
-    ethusdt = fetchHistPriceOneMinPeriod(symbol, start_date, end_date)
-    ethusdt.to_csv("dataHouse/{0}_{1}-{2}_{3}.csv".format(symbol, start_date, end_date, "1m"))
+    ethusdt = fetchHistPrices15MinOneYear(symbol, start_date)
+    ethusdt.to_csv("dataHouse/{0}_{1}-{2}_{3}.csv".format(symbol, start_date, end_date, "15m"))
