@@ -8,9 +8,12 @@ from constants import ROOT_PATH, SIMULATION_END
 from simu_market import SimuMarket, SimulationEndException
 from simulator.simu_report import SimuReport
 from strategies import BaseStrategy
+from strategies.bolling_strategy import BollingStrategy
 from strategies.ma_strategy import MAStrategy
 import matplotlib.pyplot as plt
 import pandas as pd
+
+from strategies.svm_strategy import SVMStrategy
 
 
 class Simulator:
@@ -46,9 +49,12 @@ class Simulator:
             hedge_sr.append(hedge_report.sharp_ratio)
         return norm_sr, hist_sr, hedge_sr
 
-    def backtest(self, init_cash=10000, init_positions={}):
+    def backtest(self, init_cash=10000, init_positions=None):
+        if init_positions is None:
+            init_positions = {}
         self.reset()
-        self.strategy.account.set_cash(init_cash)
+        self.strategy.account.set_init_cash(init_cash)
+        self.strategy.account.init_positions = init_positions
         self.strategy.account.positions = init_positions
         hist_asset = []
         try:
@@ -71,29 +77,44 @@ class Simulator:
         return norm_price, hist_asset, hedge_price, \
                SimuReport(norm_price), SimuReport(hist_asset), SimuReport(hedge_price)
 
+    @staticmethod
+    def plot_histogram(data_arr, canvas):
+        q25, q75 = np.percentile(data_arr, [25, 75])
+        bin_width = 2 * (q75 - q25) * len(data_arr) ** (-1 / 3)
+        bins = round((data_arr.max() - data_arr.min()) / bin_width)
+        print("Freedman–Diaconis number of bins:", bins)
+
+        canvas.hist(data_arr, density=True, bins=bins * 2, label="Data")
+        mn, mx = -2, 2
+        canvas.axis(xmin=mn, xmax=mx)
+        kde_xs = np.linspace(mn, mx, 300)
+        kde = gaussian_kde(data_arr)
+        canvas.plot(kde_xs, kde.pdf(kde_xs), label="PDF")
+        canvas.legend(loc="upper left")
+        canvas.set_ylabel("Probability")
+        canvas.set_xlabel("Data")
+
+    @staticmethod
+    def plot_chart(standard_arr, data_arr, canvas):
+        canvas.plot(standard_arr, 'r')
+        canvas.plot(data_arr, 'g')
 
 if __name__ == "__main__":
-    DATA_PATH = ROOT_PATH + "/dataHouse/ETHUSDT_2021-09-01-2021-09-30_1m.csv"
+    DATA_PATH = ROOT_PATH + "/dataHouse/ETHUSDT_2021-06-01-2021-12-31_1m.csv"
     data = pd.read_csv(DATA_PATH)
-    strat = MAStrategy()
+    strat = BollingStrategy()
     s = Simulator(data, strat)
+    # norm_price, hist_asset, hedge_price, norm_report, hist_report, hedge_report = s.backtest()
+    # Simulator.plot_chart(norm_price, hist_asset, plt)
+    # plt.show()
+    # exit()
 
-    norm_sr, hist_sr, hedge_sr = s.heavy_tests(300)
+    norm_sr, hist_sr, hedge_sr = s.heavy_tests(100)
+    norm_sr = np.array(norm_sr) * 100
+    hist_sr = np.array(hist_sr)
     hedge_sr = np.array(hedge_sr)
-
-    q25, q75 = np.percentile(hedge_sr, [25, 75])
-    bin_width = 2 * (q75 - q25) * len(hedge_sr) ** (-1 / 3)
-    bins = round((hedge_sr.max() - hedge_sr.min()) / bin_width)
-    print("Freedman–Diaconis number of bins:", bins)
-
-    plt.hist(hedge_sr, density=True, bins=bins * 2, label="Data")
-    mn, mx = plt.xlim()
-    plt.xlim(mn, mx)
-    kde_xs = np.linspace(mn, mx, 300)
-    kde = gaussian_kde(hedge_sr)
-    plt.plot(kde_xs, kde.pdf(kde_xs), label="PDF")
-    plt.legend(loc="upper left")
-    plt.ylabel("Probability")
-    plt.xlabel("Data")
-    plt.title("Histogram");
+    figure, axis = plt.subplots(nrows=3, ncols=1)
+    Simulator.plot_histagram(norm_sr, axis[0])
+    Simulator.plot_histagram(hist_sr, axis[1])
+    Simulator.plot_histagram(hedge_sr, axis[2])
     plt.show()

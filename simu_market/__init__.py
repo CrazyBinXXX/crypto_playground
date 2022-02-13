@@ -51,6 +51,20 @@ class SimuMarket:
         self.np_data = np.array(self.df_data)
         self.data_shape = self.df_data.shape
 
+    def add_bollings(self):
+        self.df_data['ohlc'] = self.df_data.apply(lambda x: (x['o'] + x['h'] + x['l'] + x['c']) / 4, axis=1)
+        self.df_data['bolling_m'] = self.df_data['ohlc'].rolling(20).apply(lambda x: x.mean())
+        self.df_data['bolling_1u'] = self.df_data['ohlc'].rolling(20).apply(lambda x: x.mean() + x.std())
+        self.df_data['bolling_2u'] = self.df_data['ohlc'].rolling(20).apply(lambda x: x.mean() + 2 * x.std())
+        self.df_data['bolling_1l'] = self.df_data['ohlc'].rolling(20).apply(lambda x: x.mean() - x.std())
+        self.df_data['bolling_2l'] = self.df_data['ohlc'].rolling(20).apply(lambda x: x.mean() - 2 * x.std())
+
+        # Signals
+        self.df_data['short_signal'] = self.df_data.apply(lambda x: x['o'] > x['bolling_m'] and x['c'] < x['bolling_m'], axis=1)
+        self.df_data['stop_loss_signal'] = self.df_data.apply(lambda x: x['o'] < x['bolling_1u'] and x['h'] > x['bolling_1u'], axis=1)
+        self.df_data['touch_bottom'] = self.df_data.apply(lambda x: x['o'] > x['bolling_2l'] and x['l'] < x['bolling_2l'], axis=1)
+        self.df_data['stop_profit_signal'] = self.df_data.apply(lambda x: x['o'] < x['bolling_1l'] and x['h'] > x['bolling_1l'], axis=1)
+
     def get_symbol_price_array(self):
         return np.array(self.df_data['c'])
 

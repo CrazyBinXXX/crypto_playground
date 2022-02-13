@@ -54,7 +54,7 @@ def strToDate(date_str):
   return dt.datetime.strptime(date_str, "%Y-%m-%d")
 
 if __name__ == "__main__":
-    start_date = strToDate("2021-09-01")
-    end_date = strToDate("2021-09-30")
+    start_date = strToDate("2021-06-01")
+    end_date = strToDate("2021-12-31")
     ethusdt = fetchHistPriceOneMinPeriod(symbol, start_date, end_date)
     ethusdt.to_csv("dataHouse/{0}_{1}-{2}_{3}.csv".format(symbol, start_date, end_date, "1m"))

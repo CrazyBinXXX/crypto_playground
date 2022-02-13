@@ -10,6 +10,10 @@ class MAStrategy(BaseStrategy):
         self.last_data = None
         self.hold_days = -1
 
+    def reset(self):
+        self.last_data = None
+        self.hold_days = -1
+
     @staticmethod
     def buy_signal(last_data, new_data):
         if last_data is None:
@@ -31,10 +35,11 @@ class MAStrategy(BaseStrategy):
         if self.hold_days >= 0:
             self.hold_days += 1
         if self.buy_signal(self.last_data, new_data):
-            self.account.buy_all('ETH', new_data['c'])
+            self.account.buy_all('ETH')
             self.hold_days = 0
-        if self.hold_days >= 3:
-            self.account.sell_all('ETH', new_data['c'])
+        if self.hold_days >= 10:
+            self.account.sell_all('ETH')
+            self.hold_days = -1
         self.last_data = new_data
         return 0
 
@@ -42,7 +47,7 @@ class MAStrategy(BaseStrategy):
 if __name__ == "__main__":
     strat = MAStrategy()
     sm = SimuMarket()
-    data_path = ROOT_PATH + "/dataHouse/ETHUSDT_2021-09-01-2021-09-30_1m.csv"
+    data_path = ROOT_PATH + "/dataHouse/ETHUSDT_2021-06-01-2021-12-31_1m.csv"
     sm.load_data(data_path)
     strat.load_market(sm)
     for i in range(10):
