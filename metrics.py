@@ -50,3 +50,34 @@ def max_drawdown(rets):
         maxDrawdown = min(maxDrawdown, currentSum)
     return np.exp(maxDrawdown) - 1.0
 
+def calc_cubic_interpolation(x):
+    n = len(x) - 1
+    M = np.zeros(4*n, 4*n)
+    M[0, 2] = 2
+    M[0, 3] = 6*x[0]
+    M[4*n-1, 4*n-2] = 2
+    M[4*n-1, 4*n-1] = 6*x[n]
+    for i in range(1, n+1):
+        M[4*i-3, 4*i-4] = 1
+        M[4*i-3, 4*i-3] = x[i-1]
+        M[4*i-3, 4*i-2] = x[i-1]**2
+        M[4*i-3, 4*i-1] = x[i-1]**3
+
+        M[4 * i - 2, 4 * i - 4] = 1
+        M[4 * i - 2, 4 * i - 3] = x[i]
+        M[4 * i - 2, 4 * i - 2] = x[i] ** 2
+        M[4 * i - 2, 4 * i - 1] = x[i] ** 3
+
+        if i != n:
+            M[4 * i - 1, 4 * i - 3] = 1
+            M[4 * i - 1, 4 * i - 2] = 2 * x[i]
+            M[4 * i - 1, 4 * i - 1] = 3 * x[i] ** 2
+            M[4 * i - 1, 4 * i + 1] = -1
+            M[4 * i - 1, 4 * i + 2] = -2*x[i]
+            M[4 * i - 1, 4 * i + 3] = -3* x[i]**2
+
+            M[4 * i - 1, 4 * i - 2] = 2
+            M[4 * i - 1, 4 * i - 1] = 6 * x[i]
+            M[4 * i - 1, 4 * i + 2] = -2
+            M[4 * i - 1, 4 * i + 3] = -6*x[i]
+        return M

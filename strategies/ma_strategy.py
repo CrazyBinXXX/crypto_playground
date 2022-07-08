@@ -8,11 +8,16 @@ class MAStrategy(BaseStrategy):
     def __init__(self):
         super().__init__()
         self.last_data = None
-        self.hold_days = -1
+        self.longing = False
+        self.shorting = False
+        self.holding_limit = 96
+        self.holding_days = -1
 
     def reset(self):
         self.last_data = None
-        self.hold_days = -1
+        self.longing = False
+        self.shorting = False
+        self.holding_days = -1
 
     @staticmethod
     def buy_signal(last_data, new_data):
@@ -32,15 +37,19 @@ class MAStrategy(BaseStrategy):
 
     def step(self):
         new_data = self.market.get_next_data()
-        if self.hold_days >= 0:
-            self.hold_days += 1
-        if self.buy_signal(self.last_data, new_data):
-            self.account.buy_all('ETH')
-            self.hold_days = 0
-        if self.hold_days >= 10:
-            self.account.sell_all('ETH')
-            self.hold_days = -1
-        self.last_data = new_data
+        if self.holding_days > -1:
+            self.holding_days += 1
+        # Take Action
+        if new_data['trend_bull']:
+            if not self.longing:
+                self.account.long_underlying('BTC')
+                self.longing = True
+                self.holding_days = 0
+        elif new_data['trend_bear'] and self.holding_days >= self.holding_limit:
+            if self.longing:
+                self.account.close_long_position('BTC')
+                self.longing = False
+                self.holding_days = -1
         return 0
 
 

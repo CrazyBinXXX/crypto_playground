@@ -1,5 +1,3 @@
-import fetchData
-import pandas as pd
 import numpy as np
 
 def getNMA(arr : np.array, n : int):

@@ -8,79 +8,81 @@ from constants import ROOT_PATH, SIMULATION_END
 from simu_market import SimuMarket, SimulationEndException
 from simulator.simu_report import SimuReport
 from strategies import BaseStrategy
+from strategies.bolling_king_strategy import BollingKingStrategy
 from strategies.bolling_strategy import BollingStrategy
+from strategies.bull_strategy import BullStrategy
+from strategies.code_bull_strategy import CodeBullStrategy
+from strategies.ma_long_short_strategy import MALongShortStrategy
 from strategies.ma_strategy import MAStrategy
+from strategies.ma_short_strategy import MAShortStrategy
 import matplotlib.pyplot as plt
 import pandas as pd
+import copy
 
 from strategies.svm_strategy import SVMStrategy
 
 
 class Simulator:
-    def __init__(self, data, strategy: BaseStrategy, n=10000):
+    def __init__(self, data_set, strategy_list, n=10000):
         market = SimuMarket()
-        self.data = data
+        self.data_set = data_set
         market.load_df(self.random_slice(n))
-        self.strategy = strategy
-        self.strategy.load_market(market)
+        self.strategy_list = strategy_list
+        self.init_cash = 10000
+        for strategy in strategy_list:
+            strategy.load_market(market, self.init_cash)
 
     def reset(self, n=10000):
         market = SimuMarket()
         market.load_df(self.random_slice(n))
-        self.strategy.load_market(market)
+        for strategy in self.strategy_list:
+            strategy.load_market(copy.deepcopy(market), self.init_cash)
 
     def random_slice(self, n):
-        rand_start = random.randint(0, self.data.shape[0] - n - 1)
-        data = self.data.iloc[rand_start: rand_start + n]
+        rand_start = random.randint(0, self.data_set.shape[0] - n - 1)
+        data = self.data_set.iloc[rand_start: rand_start + n]
+        print("random slice: ", rand_start, rand_start + n)
         return data
 
     def step(self):
-        self.strategy.step()
+        for strategy in self.strategy_list:
+            strategy.step()
 
     def score(self, data_arr):
         pass
 
-    def heavy_tests(self, n=100):
-        norm_sr, hist_sr, hedge_sr = pd.DataFrame(columns=['ROI', 'Corr', 'Volatility', 'Sharp Ratio', 'Max Dropdown']),\
-                                     pd.DataFrame(columns=['ROI', 'Corr', 'Volatility', 'Sharp Ratio', 'Max Dropdown']),\
-                                     pd.DataFrame(columns=['ROI', 'Corr', 'Volatility', 'Sharp Ratio', 'Max Dropdown'])
-        for i in range(n):
-            norm_price, hist_asset, hedge_price, norm_report, hist_report, hedge_report = self.backtest()
-            norm_sr = norm_sr.append(norm_report.to_df(), ignore_index=True)
-            hist_sr = hist_sr.append(hist_report.to_df(), ignore_index=True)
-            hedge_sr = hedge_sr.append(hedge_report.to_df(), ignore_index=True)
-        return norm_sr, hist_sr, hedge_sr
+    # def heavy_tests(self, n=100):
+    #     norm_sr, hist_sr, hedge_sr = pd.DataFrame(columns=['ROI', 'Corr', 'Volatility', 'Sharp Ratio', 'Max Dropdown']),\
+    #                                  pd.DataFrame(columns=['ROI', 'Corr', 'Volatility', 'Sharp Ratio', 'Max Dropdown']),\
+    #                                  pd.DataFrame(columns=['ROI', 'Corr', 'Volatility', 'Sharp Ratio', 'Max Dropdown'])
+    #     for i in range(n):
+    #         norm_price, hist_asset, hedge_price, norm_report, hist_report, hedge_report = self.backtest()
+    #         norm_sr = norm_sr.append(norm_report.to_df(), ignore_index=True)
+    #         hist_sr = hist_sr.append(hist_report.to_df(), ignore_index=True)
+    #         hedge_sr = hedge_sr.append(hedge_report.to_df(), ignore_index=True)
+    #     return norm_sr, hist_sr, hedge_sr
 
-    def backtest(self, init_cash=10000, init_positions=None):
+    def backtest(self, init_cash=10000, init_positions=None, num_timestamps=10000):
+        self.init_cash = init_cash
         if init_positions is None:
             init_positions = {}
-        self.reset()
-        self.strategy.account.set_init_cash(init_cash)
-        self.strategy.account.init_positions = init_positions
-        self.strategy.account.positions = init_positions
-        self.strategy.account.mortgage = 0
-        hist_asset = []
+        self.reset(n=num_timestamps)
+        hist_asset = [[] for i in range (len(self.strategy_list))]
         try:
             i = 0
             while True:
-                # if i % 1000 == 0:
-                #     print('STEP: {}'.format(i))
+                if i % 1000 == 0:
+                    print('STEP: {}'.format(i))
                 i += 1
-                end = self.strategy.step()
-                hist_asset.append(self.strategy.account.get_total_asset())
+                self.step()
+                for j, strategy in enumerate(self.strategy_list):
+                    hist_asset[j].append(strategy.account.get_total_asset())
         except SimulationEndException as e:
             print(e)
         print("BACKTEST END")
-        print(self.strategy.trade_num)
-        print(self.strategy.account.trading_fee)
-        eth_price = self.strategy.market.get_symbol_price_array()
+        eth_price = self.strategy_list[0].market.get_symbol_price_array()
         norm_price = eth_price / eth_price[0] * 10000
-        hedge_price = (hist_asset + (20000 - norm_price)) / 2
-        SimuReport(norm_price).pretty_print("Standard")
-        SimuReport(hist_asset).pretty_print("Strat")
-        # SimuReport(hedge_price).pretty_print("Hedge")
-        return norm_price, hist_asset, hedge_price, \
-               SimuReport(norm_price), SimuReport(hist_asset), SimuReport(hedge_price)
+        return norm_price, hist_asset, SimuReport(norm_price), [SimuReport(each) for each in hist_asset]
 
     @staticmethod
     def plot_histogram(data_arr, canvas):
@@ -104,13 +106,44 @@ class Simulator:
         canvas.plot(standard_arr, 'r')
         canvas.plot(data_arr, 'g')
 
-if __name__ == "__main__":
-    DATA_PATH = ROOT_PATH + "/dataHouse/ETHUSDT_2021-01-01-2021-12-31_15m.csv"
-    data = pd.read_csv(DATA_PATH)
-    strat = BollingStrategy()
-    s = Simulator(data, strat)
-    norm_price, hist_asset, hedge_price, norm_report, hist_report, hedge_report = s.backtest()
-    Simulator.plot_chart(norm_price, hist_asset, plt)
+
+def tangency_portfolio(underlying_price, hist_asset):
+    X = np.stack((underlying_price, hist_asset), axis=0)
+    sigma = np.cov(X)
+    miu = np.array([underlying_price[-1] / underlying_price[0] - 1, hist_asset[-1] / hist_asset[0] - 1])
+    x = np.linalg.solve(sigma, miu)
+    w = 1 / (x.sum()) * x
+    return w
+
+
+if __name__ == "__main__xxx":
+    DATA_PATH = ROOT_PATH + "/dataHouse/data/cryptoPrices/BTCUSDT_2021-06-23-2022-06-23_1m.csv"
+    PREPARED_DATA_PATH = ROOT_PATH + "/dataHouse/data/preparedData/BTCUSDT_2021-06-23-2022-06-23_1m.csv"
+    data = pd.read_csv(DATA_PATH, index_col=0)
+    try:
+        extended_data = pd.read_csv(PREPARED_DATA_PATH, index_col=0)
+    except FileNotFoundError:
+        extended_data = BollingKingStrategy.extend_market(data)
+        extended_data.to_csv(PREPARED_DATA_PATH)
+        extended_data = pd.read_csv(PREPARED_DATA_PATH, index_col=0)
+    extended_data = extended_data.iloc[-100100:-100]
+    strat = BollingKingStrategy()
+    # strat = BullStrategy()
+    steps = 50000
+    s = Simulator(extended_data, [strat], n=steps)
+    norm_price, hist_asset, norm_repot, hist_report = s.backtest(num_timestamps=steps)
+    norm_repot.pretty_print()
+    hist_report[0].pretty_print()
+    w = tangency_portfolio(norm_price, hist_asset[0])
+    w = np.array([0, 3, -2])
+    print('The tangency weight vector w is:', w)
+    tangency_price = w[0] * norm_price + w[1] * np.array(hist_asset[0]) + w[2] * 10000
+    tangency_report = SimuReport(tangency_price)
+    tangency_report.pretty_print()
+    strat.account.pretty_print()
+    Simulator.plot_chart(norm_price, hist_asset[0], plt)
+    plt.plot(tangency_price, 'blue')
+    plt.rcParams["figure.figsize"] = (30, 20)
     plt.show()
     exit()
 
@@ -129,3 +162,34 @@ if __name__ == "__main__":
     strat_name = 'bolling001'
     final_reports.to_csv("./simulationResults/{0}_{1}_{2}-{3}.csv".format(strat_name, 'ETH', '2021-01-01', '2021-12-31'))
     # plt.show()
+
+if __name__ == "__main__":
+    DATA_PATH = ROOT_PATH + "/dataHouse/data/cryptoPrices/BTCUSDT_2020-01-01-2020-12-31_15m.csv"
+    PREPARED_DATA_PATH = ROOT_PATH + "/dataHouse/data/preparedData/BTCUSDT_2020-01-01-2020-12-31_15m_mashort_prepared.csv"
+    data = pd.read_csv(DATA_PATH, index_col=0)
+    try:
+        extended_data = pd.read_csv(PREPARED_DATA_PATH, index_col=0)
+    except FileNotFoundError:
+        extended_data = CodeBullStrategy.extend_market(data)
+        extended_data.to_csv(PREPARED_DATA_PATH)
+        extended_data = pd.read_csv(PREPARED_DATA_PATH, index_col=0)
+    # extended_data = extended_data.iloc[-34200:-100]
+    strat = MAShortStrategy()
+    strat_long_short = MALongShortStrategy()
+    steps = 4 * 24 * 30 * 12 * 1 - 100
+    s = Simulator(extended_data, [strat, strat_long_short], n=steps)
+    norm_price, hist_asset, norm_repot, hist_report = s.backtest(num_timestamps=steps)
+    norm_repot.pretty_print()
+    hist_report[0].pretty_print()
+
+    hist_report[1].pretty_print()
+    strat.account.pretty_print()
+
+    strat_long_short.account.pretty_print()
+    Simulator.plot_chart(norm_price, hist_asset[0], plt)
+
+    plt.plot(hist_asset[1], 'b')
+
+    plt.rcParams["figure.figsize"] = (30, 20)
+    plt.show()
+

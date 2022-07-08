@@ -1,6 +1,21 @@
 from simu_market import SimuMarket
 from constants import SPOT_FEE, MARKET_ORDER_PENALTY
 
+
+class BaseAccount:
+    def __init__(self, market: SimuMarket, init_cash):
+        self.cash = 0
+        self.market = None
+        self.load_market(market)
+        self.set_init_cash(init_cash)
+
+    def set_init_cash(self, init_cash):
+        self.cash = init_cash
+
+    def load_market(self, market):
+        self.market = market
+
+
 class Account:
     def __init__(self):
         self.init_cash = 0
