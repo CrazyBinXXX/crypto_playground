@@ -4,6 +4,8 @@ import random
 import numpy as np
 
 from scipy.stats import gaussian_kde
+
+from backtestGround.utils import tangency_portfolio
 from constants import ROOT_PATH, SIMULATION_END
 from simu_market import SimuMarket, SimulationEndException
 from simulator.simu_report import SimuReport
@@ -23,25 +25,21 @@ from strategies.svm_strategy import SVMStrategy
 
 
 class Simulator:
-    def __init__(self, data_set, strategy_list, n=10000):
-        market = SimuMarket()
+    def __init__(self, data_set, strategy_list):
         self.data_set = data_set
-        market.load_df(self.random_slice(n))
         self.strategy_list = strategy_list
         self.init_cash = 10000
-        for strategy in strategy_list:
-            strategy.load_market(market, self.init_cash)
 
-    def reset(self, n=10000):
+    def reset(self, time_window=10000):
         market = SimuMarket()
-        market.load_df(self.random_slice(n))
+        market.load_df(self.random_slice(time_window))
         for strategy in self.strategy_list:
             strategy.load_market(copy.deepcopy(market), self.init_cash)
 
-    def random_slice(self, n):
-        rand_start = random.randint(0, self.data_set.shape[0] - n - 1)
-        data = self.data_set.iloc[rand_start: rand_start + n]
-        print("random slice: ", rand_start, rand_start + n)
+    def random_slice(self, time_window):
+        rand_start = random.randint(0, self.data_set.shape[0] - time_window - 1)
+        data = self.data_set.iloc[rand_start: rand_start + time_window]
+        print("random slice: ", rand_start, rand_start + time_window)
         return data
 
     def step(self):
@@ -66,8 +64,8 @@ class Simulator:
         self.init_cash = init_cash
         if init_positions is None:
             init_positions = {}
-        self.reset(n=num_timestamps)
-        hist_asset = [[] for i in range (len(self.strategy_list))]
+        self.reset(time_window=num_timestamps)
+        history_asset = [[] for i in range (len(self.strategy_list))]
         try:
             i = 0
             while True:
@@ -76,13 +74,13 @@ class Simulator:
                 i += 1
                 self.step()
                 for j, strategy in enumerate(self.strategy_list):
-                    hist_asset[j].append(strategy.account.get_total_asset())
+                    history_asset[j].append(strategy.account.get_total_asset())
         except SimulationEndException as e:
             print(e)
         print("BACKTEST END")
-        eth_price = self.strategy_list[0].market.get_symbol_price_array()
-        norm_price = eth_price / eth_price[0] * 10000
-        return norm_price, hist_asset, SimuReport(norm_price), [SimuReport(each) for each in hist_asset]
+        underlying_price = self.strategy_list[0].market.get_symbol_price_array()
+        normal_price = underlying_price / underlying_price[0] * init_cash
+        return normal_price, history_asset, SimuReport(normal_price), [SimuReport(e) for e in history_asset]
 
     @staticmethod
     def plot_histogram(data_arr, canvas):
@@ -106,14 +104,6 @@ class Simulator:
         canvas.plot(standard_arr, 'r')
         canvas.plot(data_arr, 'g')
 
-
-def tangency_portfolio(underlying_price, hist_asset):
-    X = np.stack((underlying_price, hist_asset), axis=0)
-    sigma = np.cov(X)
-    miu = np.array([underlying_price[-1] / underlying_price[0] - 1, hist_asset[-1] / hist_asset[0] - 1])
-    x = np.linalg.solve(sigma, miu)
-    w = 1 / (x.sum()) * x
-    return w
 
 
 if __name__ == "__main__xxx":
@@ -177,7 +167,7 @@ if __name__ == "__main__":
     strat = MAShortStrategy()
     strat_long_short = MALongShortStrategy()
     steps = 4 * 24 * 30 * 12 * 1 - 100
-    s = Simulator(extended_data, [strat, strat_long_short], n=steps)
+    s = Simulator(extended_data, [strat, strat_long_short])
     norm_price, hist_asset, norm_repot, hist_report = s.backtest(num_timestamps=steps)
     norm_repot.pretty_print()
     hist_report[0].pretty_print()

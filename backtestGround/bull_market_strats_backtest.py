@@ -20,12 +20,11 @@ if __name__ == "__main__":
     strat_list = [strat, strat_long_short]
 
     steps = 4 * 24 * 30 * 12 * 1 - 100
-    s = Simulator(extended_data, strat_list, n=steps)
+    s = Simulator(extended_data, strat_list)
     norm_price, hist_asset, norm_repot, hist_report = s.backtest(num_timestamps=steps)
 
     norm_repot.pretty_print()
     for report in hist_report:
-        report.pretty_print()
         report.pretty_print()
 
     for strat in strat_list:

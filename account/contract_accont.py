@@ -69,10 +69,11 @@ class ContractAccount(BaseAccount):
             amount = max_amount
         amount = min(max_amount, amount)
 
-        self.cash -= amount * execution_price
+        volume = amount * execution_price
+        self.cash -= volume
         self.positions[underlying]["Long Positions"].avg_new_position(amount, execution_price)
-        self.record_trade_info(self.market.get_cur_date(), amount * execution_price, "Open Long", 0)
-        pass
+        self.record_trade_info(self.market.get_cur_date(), volume, "Open Long", 0)
+        self.trading_fee += volume * SPOT_FEE
 
     def close_long_position(self, underlying, amount=-1, execution_price=-1):
         if execution_price == -1:
@@ -82,9 +83,11 @@ class ContractAccount(BaseAccount):
         if amount == -1 or amount > max_amount:
             amount = max_amount
 
+        volume = amount * execution_price
         self.positions[underlying]["Long Positions"].amount -= amount
-        self.cash += amount * execution_price
-        self.record_trade_info(self.market.get_cur_date(), amount * execution_price, "Close Long", amount * execution_price - amount * self.positions[underlying]["Long Positions"].avg_cost)
+        self.cash += volume
+        self.record_trade_info(self.market.get_cur_date(), volume, "Close Long", volume- amount * self.positions[underlying]["Long Positions"].avg_cost)
+        self.trading_fee += volume * SPOT_FEE
 
     def short_underlying(self, underlying, amount=-1, execution_price=-1):
         if execution_price == -1:
@@ -95,9 +98,11 @@ class ContractAccount(BaseAccount):
             # All in
             amount = max_amount
 
-        self.cash -= amount * execution_price
+        volume = amount * execution_price
+        self.cash -= volume
         self.positions[underlying]["Short Positions"].avg_new_position(amount, execution_price)
-        self.record_trade_info(self.market.get_cur_date(), amount * execution_price, "Open Short", 0)
+        self.record_trade_info(self.market.get_cur_date(), volume, "Open Short", 0)
+        self.trading_fee += volume * SPOT_FEE
 
     def close_short_position(self, underlying, amount=-1, execution_price=-1):
         if execution_price == -1:
@@ -106,10 +111,12 @@ class ContractAccount(BaseAccount):
         if amount == -1 or amount > max_amount:
             amount = max_amount
 
+        volume = amount * execution_price
         total_margin = self.positions[underlying]["Short Positions"].avg_margin * amount
         self.positions[underlying]["Short Positions"].amount -= amount
         self.cash += total_margin * 2 - amount * execution_price
-        self.record_trade_info(self.market.get_cur_date(), amount * execution_price, "Close Short", total_margin - amount * execution_price)
+        self.record_trade_info(self.market.get_cur_date(), volume, "Close Short", total_margin - volume)
+        self.trading_fee += volume * SPOT_FEE
 
     def get_total_asset(self):
         total_asset = self.cash
@@ -117,6 +124,7 @@ class ContractAccount(BaseAccount):
             total_asset += position["Long Positions"].amount * self.market.get_cur_price(underlying)['c']
             total_asset += position["Short Positions"].amount * position["Short Positions"].avg_margin * 2 -\
                            position["Short Positions"].amount * self.market.get_cur_price(underlying)['c']
+        total_asset -= self.trading_fee
         return total_asset
 
     def pretty_print(self):
@@ -129,6 +137,8 @@ class ContractAccount(BaseAccount):
         for trade in self.trade_history:
             if trade.profit != 0:
                 print(trade)
+        print("Total trading cost:")
+        print(self.trading_fee)
         print("Win rate:")
         cnt = 0
         for trade in self.trade_history:

@@ -50,6 +50,13 @@ class MALongShortStrategy(BaseStrategy):
         self.shorting = False
         self.holding_days = -1
 
+    def exit_reset(self):
+        self.shorting = False
+        self.longing = False
+        self.holding_days = -1
+        self.entry_price = -1
+        self.entry_asset = -1
+
     def step(self):
         new_data = self.market.get_next_data()
         if self.holding_days > -1:
@@ -65,67 +72,54 @@ class MALongShortStrategy(BaseStrategy):
         cross_bolling_l_factor = new_data['o'] < new_data['bolling_2l'] < new_data['c']
         low_vol_factor = not new_data['vol_too_high']
         high_volume_factor = new_data['v'] > new_data['100_ma_volume'] * self.high_volume_factor
+
+        # Open flags
         short_flag = trend_bear_factor and (cross_bolling_u_factor) and low_vol_factor
         long_flag = trend_bull_factor and cross_bolling_l_factor and low_vol_factor
         short_flag = (high_volume_factor and new_data['o'] > new_data['c']) or short_flag
         long_flag = (high_volume_factor and new_data['o'] < new_data['c']) or long_flag
 
+        # Close flags
+        holding_long_close_flag = self.holding_days > self.max_holding
 
         if self.shorting or self.longing:
             # Decide whether to exit
-            takeProfit = 0.05
-            stopLoss = -0.025
+            take_profit = 0.05
+            stop_loss = 0.025
+            short_take_profit_price = self.entry_price / (1 + take_profit)
+            short_stop_loss_price = self.entry_price / (1 - stop_loss)
+            short_take_profit_price_exec = self.entry_price / (1 + take_profit * self.leverage)
+            short_stop_loss_price_exec = self.entry_price / (1 - stop_loss * self.leverage)
+            long_take_profit_price = self.entry_price * (1 + take_profit)
+            long_stop_loss_price = self.entry_price * (1 - stop_loss)
+            long_take_profit_price_exec = self.entry_price * (1 + take_profit * self.leverage)
+            long_stop_loss_price_exec = self.entry_price * (1 - stop_loss * self.leverage)
             if self.shorting:
-                if self.holding_days > self.max_holding:
-                    # Force quit if holding too long
+                # Force quit if holding too long
+                if holding_long_close_flag:
                     self.account.close_short_position('BTC', execution_price=new_data['c'])
-                    self.shorting = False
-                    self.holding_days = -1
-                    self.entry_price = -1
-                    self.entry_asset = -1
-                takeProfitPrice = self.entry_price / (1 + takeProfit)
-                stopLossPrice = self.entry_price / (1 + stopLoss)
-                takeProfitPrice_exec = self.entry_price / (1 + takeProfit * self.leverage)
-                stopLossPrice_exec = self.entry_price / (1 + stopLoss * self.leverage)
+                    self.exit_reset()
                 # Take profit / Stop loss
-                if new_data['h'] > stopLossPrice:
-                    self.account.close_short_position('BTC', execution_price=stopLossPrice_exec)
-                    self.shorting = False
-                    self.holding_days = -1
-                    self.entry_price = -1
-                    self.entry_asset = -1
-                elif new_data['l'] < takeProfitPrice:
-                    self.account.close_short_position('BTC', execution_price=takeProfitPrice_exec)
-                    self.shorting = False
-                    self.holding_days = -1
-                    self.entry_price = -1
-                    self.entry_asset = -1
+                if new_data['h'] > short_stop_loss_price:
+                    self.account.close_short_position('BTC', execution_price=short_stop_loss_price_exec)
+                    self.exit_reset()
+                elif new_data['l'] < short_take_profit_price:
+                    self.account.close_short_position('BTC', execution_price=short_take_profit_price_exec)
+                    self.exit_reset()
             if self.longing:
-                if self.holding_days > self.max_holding:
-                    # Force quit if holding too long
+                # Force quit if holding too long
+                if holding_long_close_flag:
                     self.account.close_long_position('BTC', execution_price=new_data['c'])
-                    self.longing = False
-                    self.holding_days = -1
-                    self.entry_price = -1
-                    self.entry_asset = -1
-                takeProfitPrice = self.entry_price * (1 + takeProfit)
-                stopLossPrice = self.entry_price * (1 + stopLoss)
-                takeProfitPrice_exec = self.entry_price * (1 + takeProfit * self.leverage)
-                stopLossPrice_exec = self.entry_price * (1 + stopLoss * self.leverage)
+                    self.exit_reset()
                 # Take profit / Stop loss
-                if new_data['l'] < stopLossPrice:
-                    self.account.close_long_position('BTC', execution_price=stopLossPrice_exec)
-                    self.longing = False
-                    self.holding_days = -1
-                    self.entry_price = -1
-                    self.entry_asset = -1
-                elif new_data['h'] > takeProfitPrice:
-                    self.account.close_long_position('BTC', execution_price=takeProfitPrice_exec)
-                    self.longing = False
-                    self.holding_days = -1
-                    self.entry_price = -1
-                    self.entry_asset = -1
+                if new_data['l'] < long_stop_loss_price:
+                    self.account.close_long_position('BTC', execution_price=long_stop_loss_price_exec)
+                    self.exit_reset()
+                elif new_data['h'] > long_take_profit_price:
+                    self.account.close_long_position('BTC', execution_price=long_take_profit_price_exec)
+                    self.exit_reset()
         else:
+            # Decide whether to in
             if short_flag:
                 # Short
                 self.account.short_underlying('BTC')
