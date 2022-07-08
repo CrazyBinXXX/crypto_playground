@@ -12,14 +12,14 @@ from utils import get_data
 
 
 if __name__ == "__main__":
-    data, extended_data = get_data('BTCUSDT', '2018-01-01', '2020-01-01', '15m', True, 'mashort_prepared', MAShortStrategy.extend_market)
+    data, extended_data = get_data('BTCUSDT', '2020-01-01', '2020-12-31', '15m', True, 'code_bull_prepared', CodeBullStrategy.extend_market)
     # extended_data = extended_data.iloc[-34200:-100]
-    strat = MAShortStrategy()
+    strat = CodeBullStrategy()
     strat_long_short = MALongShortStrategy()
 
     strat_list = [strat, strat_long_short]
 
-    steps = 4 * 24 * 30 * 12 * 2 - 100
+    steps = 4 * 24 * 30 * 12 * 1 - 100
     s = Simulator(extended_data, strat_list, n=steps)
     norm_price, hist_asset, norm_repot, hist_report = s.backtest(num_timestamps=steps)
 
