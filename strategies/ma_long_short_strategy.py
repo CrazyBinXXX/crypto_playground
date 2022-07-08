@@ -6,7 +6,7 @@ import pandas as pd
 
 
 class MALongShortStrategy(BaseStrategy):
-    def __init__(self):
+    def __init__(self, leverage=1):
         super().__init__()
         self.last_data = None
         self.longing = False
@@ -19,7 +19,7 @@ class MALongShortStrategy(BaseStrategy):
         self.frozen = 0
         self.max_holding = 9999999999999999
         self.high_volume_factor = 9
-        self.leverage = 1
+        self.leverage = leverage
 
     def load_market(self, market, init_cash):
         super().load_market(market, init_cash)

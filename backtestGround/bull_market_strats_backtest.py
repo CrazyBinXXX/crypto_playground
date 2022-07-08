@@ -14,10 +14,10 @@ from utils import get_data
 if __name__ == "__main__":
     data, extended_data = get_data('BTCUSDT', '2020-01-01', '2020-12-31', '15m', True, 'code_bull_prepared', CodeBullStrategy.extend_market)
     # extended_data = extended_data.iloc[-34200:-100]
-    strat = CodeBullStrategy()
-    strat_long_short = MALongShortStrategy()
+    strat_bull = CodeBullStrategy(leverage=3)
+    strat_long_short = MALongShortStrategy(leverage=1)
 
-    strat_list = [strat, strat_long_short]
+    strat_list = [strat_bull, strat_long_short]
 
     steps = 4 * 24 * 30 * 12 * 1 - 100
     s = Simulator(extended_data, strat_list)
@@ -27,9 +27,8 @@ if __name__ == "__main__":
     for report in hist_report:
         report.pretty_print()
 
-    for strat in strat_list:
-        strat.account.pretty_print()
-        strat_long_short.account.pretty_print()
+    for strategy in strat_list:
+        strategy.account.pretty_print()
 
     Simulator.plot_chart(norm_price, hist_asset[0], plt)
     plt.plot(hist_asset[1], 'b')
