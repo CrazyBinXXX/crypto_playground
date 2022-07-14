@@ -1,11 +1,14 @@
+import tensorflow_decision_forests as tfdf
 from account import Account
 from simu_market import SimuMarket
 from constants import *
 from strategies import BaseStrategy
 import pandas as pd
+import tensorflow as tf
+from constants import ROOT_PATH
 
 
-class CodeBullStrategy(BaseStrategy):
+class RandomForestStrategy(BaseStrategy):
     def __init__(self, leverage=1):
         super().__init__()
         self.last_data = None
@@ -20,6 +23,8 @@ class CodeBullStrategy(BaseStrategy):
         self.max_holding = 9999999999999999
         self.high_volume_factor = 9
         self.leverage = leverage
+        model_path = ROOT_PATH + "/modelHouse/tmp/rf_model_v0.1"
+        self.rf_model = tf.keras.models.load_model(model_path)
 
     def load_market(self, market, init_cash):
         super().load_market(market, init_cash)
@@ -70,22 +75,6 @@ class CodeBullStrategy(BaseStrategy):
         if self.holding_days > -1:
             self.holding_days += 1
         # Take Action
-        trend_bear_factor = new_data['trend_bear']
-        trend_bull_factor = new_data['trend_bull']
-        cross_bolling_factor = new_data['o'] > new_data['bolling_m'] > new_data['c']
-        if self.started:
-            cross_bolling_factor = cross_bolling_factor and \
-                                   self.last_data['o'] > self.last_data['bolling_m'] and self.last_data['c'] > self.last_data['bolling_m']
-        cross_bolling_u_factor = new_data['o'] > new_data['bolling_2u'] > new_data['c']
-        cross_bolling_l_factor = new_data['o'] < new_data['bolling_2l'] < new_data['c']
-        low_vol_factor = not new_data['vol_too_high']
-        high_volume_factor = new_data['v'] > new_data['100_ma_volume'] * self.high_volume_factor
-        short_flag = trend_bear_factor and (cross_bolling_u_factor) and low_vol_factor
-        long_flag = trend_bull_factor and cross_bolling_l_factor and low_vol_factor
-        short_flag = (high_volume_factor and new_data['o'] > new_data['c']) or short_flag
-        short_flag = False
-        # long_flag = (high_volume_factor and new_data['o'] < new_data['c']) or long_flag
-        long_flag = False
 
         if self.started:
             long_flag = new_data['c'] > self.last_data['MATR'] * 2 + self.last_data['c']
@@ -134,7 +123,7 @@ class CodeBullStrategy(BaseStrategy):
                     self.account.close_long_position('BTC', execution_price= self.entry_price + self.leverage * (new_data['c'] - self.entry_price))
                     self.exit_reset()
         else:
-            if False:
+            if short_flag:
                 # Short
                 self.account.short_underlying('BTC')
                 self.shorting = True
@@ -154,4 +143,4 @@ class CodeBullStrategy(BaseStrategy):
 
 
 if __name__ == "__main__":
-    pass
+    strat = RandomForestStrategy()

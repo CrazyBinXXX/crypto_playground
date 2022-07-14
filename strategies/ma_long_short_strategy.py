@@ -11,6 +11,8 @@ class MALongShortStrategy(BaseStrategy):
         self.last_data = None
         self.longing = False
         self.shorting = False
+        self.reverse_longing = False
+        self.reverse_shorting = False
         self.holding_limit = 96
         self.holding_days = -1
         self.entry_price = -1
@@ -56,6 +58,20 @@ class MALongShortStrategy(BaseStrategy):
         self.holding_days = -1
         self.entry_price = -1
         self.entry_asset = -1
+        if self.reverse_longing or self.reverse_shorting:
+            self.reverse_longing = False
+            self.reverse_shorting = False
+
+    def entry_set(self, long, entry_price):
+        if long:
+            self.longing = True
+            self.shorting = False
+        else:
+            self.shorting = True
+            self.longing = False
+        self.holding_days = 0
+        self.entry_price = entry_price
+        self.entry_asset = self.account.get_total_asset()
 
     def step(self):
         new_data = self.market.get_next_data()
@@ -81,11 +97,16 @@ class MALongShortStrategy(BaseStrategy):
 
         # Close flags
         holding_long_close_flag = self.holding_days > self.max_holding
+        short_exit_flag = False
+        long_exit_flag = False
 
         if self.shorting or self.longing:
             # Decide whether to exit
-            take_profit = 0.05
-            stop_loss = 0.025
+            take_profit = 0.10
+            stop_loss = 0.05
+            if self.reverse_longing or self.reverse_shorting:
+                take_profit = 0.5
+                stop_loss = 0.025
             short_take_profit_price = self.entry_price / (1 + take_profit)
             short_stop_loss_price = self.entry_price / (1 - stop_loss)
             short_take_profit_price_exec = self.entry_price / (1 + take_profit * self.leverage)
@@ -94,46 +115,55 @@ class MALongShortStrategy(BaseStrategy):
             long_stop_loss_price = self.entry_price * (1 - stop_loss)
             long_take_profit_price_exec = self.entry_price * (1 + take_profit * self.leverage)
             long_stop_loss_price_exec = self.entry_price * (1 - stop_loss * self.leverage)
+
             if self.shorting:
                 # Force quit if holding too long
                 if holding_long_close_flag:
                     self.account.close_short_position('BTC', execution_price=new_data['c'])
                     self.exit_reset()
                 # Take profit / Stop loss
-                if new_data['h'] > short_stop_loss_price:
+                elif new_data['h'] > short_stop_loss_price:
                     self.account.close_short_position('BTC', execution_price=short_stop_loss_price_exec)
                     self.exit_reset()
+                    # Reverse
+                    # self.account.long_underlying('BTC')
+                    # self.entry_set(True, new_data['c'])
+                    # self.reverse_longing = True
                 elif new_data['l'] < short_take_profit_price:
                     self.account.close_short_position('BTC', execution_price=short_take_profit_price_exec)
                     self.exit_reset()
-            if self.longing:
+                elif short_exit_flag:
+                    self.account.close_short_position('BTC', execution_price=new_data['c'])
+                    self.exit_reset()
+            elif self.longing:
                 # Force quit if holding too long
                 if holding_long_close_flag:
                     self.account.close_long_position('BTC', execution_price=new_data['c'])
                     self.exit_reset()
                 # Take profit / Stop loss
-                if new_data['l'] < long_stop_loss_price:
+                elif new_data['l'] < long_stop_loss_price:
                     self.account.close_long_position('BTC', execution_price=long_stop_loss_price_exec)
                     self.exit_reset()
+                    # Reverse
+                    # self.account.short_underlying('BTC')
+                    # self.entry_set(False, new_data['c'])
+                    # self.reverse_shorting = True
                 elif new_data['h'] > long_take_profit_price:
                     self.account.close_long_position('BTC', execution_price=long_take_profit_price_exec)
+                    self.exit_reset()
+                elif long_exit_flag:
+                    self.account.close_long_position('BTC', execution_price=new_data['c'])
                     self.exit_reset()
         else:
             # Decide whether to in
             if short_flag:
                 # Short
                 self.account.short_underlying('BTC')
-                self.shorting = True
-                self.holding_days = 0
-                self.entry_price = new_data['c']
-                self.entry_asset = self.account.get_total_asset()
+                self.entry_set(False, new_data['c'])
             elif long_flag:
                 # Long
                 self.account.long_underlying('BTC')
-                self.longing = True
-                self.holding_days = 0
-                self.entry_price = new_data['c']
-                self.entry_asset = self.account.get_total_asset()
+                self.entry_set(True, new_data['c'])
         self.last_data = new_data
         self.started = True
         return 0

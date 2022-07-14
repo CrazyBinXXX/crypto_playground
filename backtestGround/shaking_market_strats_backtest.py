@@ -12,18 +12,20 @@ from utils import get_data
 
 
 if __name__ == "__main__":
-    data, extended_data = get_data('BTCUSDT', '2018-01-01', '2020-01-01', '15m', True, 'mashort_prepared', MAShortStrategy.extend_market)
+    intervals1 = ['2021-07-10', '2022-07-10']
+    intervals2 = ['2018-01-01', '2020-01-01']
+    data, extended_data = get_data('BTCUSDT', intervals1[0], intervals1[1], '15m', True, 'mashort_prepared', MAShortStrategy.extend_market)
     # extended_data = extended_data.iloc[-34200:-100]
     strat_short = MAShortStrategy()
-    strat_long_short = MALongShortStrategy(leverage=6)
+    strat_long_short = MALongShortStrategy(leverage=1)
 
-    strat_list = [strat_short, strat_long_short]
+    strat_list = [strat_long_short]
 
-    steps = 4 * 24 * 30 * 12 * 2
+    steps = 4 * 24 * 30 * 12 * 1 - 50
     s = Simulator(extended_data, strat_list)
-    norm_price, hist_asset, norm_repot, hist_report = s.backtest(num_timestamps=steps)
+    norm_price, hist_asset, norm_report, hist_report = s.backtest(num_timestamps=steps)
 
-    norm_repot.pretty_print()
+    norm_report.pretty_print()
     for report in hist_report:
         report.pretty_print()
 
@@ -31,7 +33,6 @@ if __name__ == "__main__":
         strategy.account.pretty_print()
 
     Simulator.plot_chart(norm_price, hist_asset[0], plt)
-    plt.plot(hist_asset[1], 'b')
 
     plt.rcParams["figure.figsize"] = (30, 20)
     plt.show()
