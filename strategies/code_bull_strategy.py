@@ -103,38 +103,38 @@ class CodeBullStrategy(BaseStrategy):
                     # Force quit if holding too long
                     self.account.close_short_position('BTC', execution_price=new_data['c'])
                     self.exit_reset()
-                takeProfitPrice = self.entry_price / (1 + takeProfit)
-                stopLossPrice = self.entry_price / (1 + stopLoss)
-                takeProfitPrice_exec = self.entry_price / (1 + takeProfit * self.leverage)
-                stopLossPrice_exec = self.entry_price / (1 + stopLoss * self.leverage)
+                take_profit_price = self.entry_price / (1 + takeProfit)
+                stop_loss_price = self.entry_price / (1 + stopLoss)
+                take_profit_price_exec = self.entry_price / (1 + takeProfit * self.leverage)
+                stop_loss_price_exec = self.entry_price / (1 + stopLoss * self.leverage)
                 # Take profit / Stop loss
-                if new_data['h'] > stopLossPrice:
-                    self.account.close_short_position('BTC', execution_price=stopLossPrice_exec)
+                if new_data['h'] > stop_loss_price:
+                    self.account.close_short_position('BTC', execution_price=stop_loss_price_exec)
                     self.exit_reset()
-                elif new_data['l'] < takeProfitPrice:
-                    self.account.close_short_position('BTC', execution_price=takeProfitPrice_exec)
+                elif new_data['l'] < take_profit_price:
+                    self.account.close_short_position('BTC', execution_price=take_profit_price_exec)
                     self.exit_reset()
             if self.longing:
                 if self.holding_days > self.max_holding:
                     # Force quit if holding too long
                     self.account.close_long_position('BTC', execution_price=new_data['c'])
                     self.exit_reset()
-                takeProfitPrice = self.entry_price * (1 + takeProfit)
-                stopLossPrice = self.entry_price * (1 + stopLoss)
-                takeProfitPrice_exec = self.entry_price * (1 + takeProfit * self.leverage)
-                stopLossPrice_exec = self.entry_price * (1 + stopLoss * self.leverage)
+                take_profit_price = self.entry_price * (1 + takeProfit)
+                stop_loss_price = self.entry_price * (1 + stopLoss)
+                take_profit_price_exec = self.entry_price * (1 + takeProfit * self.leverage)
+                stop_loss_price_exec = self.entry_price * (1 + stopLoss * self.leverage)
                 # Take profit / Stop loss
-                if new_data['l'] < stopLossPrice:
-                    self.account.close_long_position('BTC', execution_price=stopLossPrice_exec)
+                if new_data['l'] < stop_loss_price:
+                    self.account.close_long_position('BTC', execution_price=stop_loss_price_exec)
                     self.exit_reset()
-                elif new_data['h'] > takeProfitPrice:
-                    self.account.close_long_position('BTC', execution_price=takeProfitPrice_exec)
+                elif new_data['h'] > take_profit_price:
+                    self.account.close_long_position('BTC', execution_price=take_profit_price_exec)
                     self.exit_reset()
                 elif short_flag:
                     self.account.close_long_position('BTC', execution_price= self.entry_price + self.leverage * (new_data['c'] - self.entry_price))
                     self.exit_reset()
         else:
-            if False:
+            if short_flag:
                 # Short
                 self.account.short_underlying('BTC')
                 self.shorting = True

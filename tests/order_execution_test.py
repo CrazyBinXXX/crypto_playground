@@ -32,7 +32,7 @@ if __name__ == '__main__':
         response = um_futures_client.account(recvWindow=6000)
         busd_balance = 0
         for asset in response['assets']:
-            if asset['asset'] == 'BUSD':
+            if asset['assets'] == 'BUSD':
                 busd_balance = float(asset['availableBalance'])
         # logging.info(response)
     except ClientError as error:

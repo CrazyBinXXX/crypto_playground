@@ -15,7 +15,7 @@ UNKNOWN_COIN = "UNKNOWN_COIN_ERROR"
 def get_account_free_asset(coinType="BTC"):
     response = spot_client.account()
     for asset_elem in response['balances']:
-        if asset_elem['asset'] == coinType:
+        if asset_elem['assets'] == coinType:
             return asset_elem['free']
     return UNKNOWN_COIN
 

@@ -1,4 +1,3 @@
-import tensorflow_decision_forests as tfdf
 from account import Account
 from simu_market import SimuMarket
 from constants import *
@@ -6,10 +5,12 @@ from strategies import BaseStrategy
 import pandas as pd
 import tensorflow as tf
 from constants import ROOT_PATH
+import _pickle as cPickle
+import tensorflow_decision_forests as tfdf
 
 
 class RandomForestStrategy(BaseStrategy):
-    def __init__(self, leverage=1):
+    def __init__(self, leverage=1, complex=False):
         super().__init__()
         self.last_data = None
         self.longing = False
@@ -23,8 +24,9 @@ class RandomForestStrategy(BaseStrategy):
         self.max_holding = 9999999999999999
         self.high_volume_factor = 9
         self.leverage = leverage
-        model_path = ROOT_PATH + "/modelHouse/tmp/rf_model_v0.1"
+        model_path = "../modelHouse/rf_model_v0.2"
         self.rf_model = tf.keras.models.load_model(model_path)
+        self.complex=complex
 
     def load_market(self, market, init_cash):
         super().load_market(market, init_cash)
@@ -75,27 +77,38 @@ class RandomForestStrategy(BaseStrategy):
         if self.holding_days > -1:
             self.holding_days += 1
         # Take Action
-
-        if self.started:
-            long_flag = new_data['c'] > self.last_data['MATR'] * 2 + self.last_data['c']
-            short_flag = new_data['c'] < self.last_data['c'] - self.last_data['MATR']
-
-        long_flag = new_data['ema'] > new_data['sma']
-        short_flag = new_data['sma'] > new_data['ema']
+        input_dict = {
+            'vol_too_high': [new_data['vol_too_high']],
+            'trend_bull': [new_data['trend_bull']],
+            'trend_bear': [new_data['trend_bear']],
+            'bolling_bull': [new_data['bolling_bull']],
+            'bolling_bear': [new_data['bolling_bear']],
+            'o_relative': [new_data['o_relative']],
+            'h_relative': [new_data['h_relative']],
+            'l_relative': [new_data['l_relative']],
+            'c_relative': [new_data['c_relative']],
+            'v_relative': [new_data['v_relative']],
+            'long_signal': [new_data['long_signal']],
+            'short_signal': [new_data['short_signal']],
+        }
+        input_df = pd.DataFrame.from_dict(input_dict) * 1
+        input_ds = tfdf.keras.pd_dataframe_to_tf_dataset(input_df)
+        results = self.rf_model.predict(input_ds)
+        result = results[0][0]
+        long_flag = False
+        short_flag = result >= 0.50
+        if self.complex:
+            short_flag = short_flag and new_data['trend_bear']
 
         if self.shorting or self.longing:
             # Decide whether to exit
-            takeProfit = 5
-            stopLoss = -5
+            take_profit = 0.10
+            stop_loss = -0.05
             if self.shorting:
-                if self.holding_days > self.max_holding:
-                    # Force quit if holding too long
-                    self.account.close_short_position('BTC', execution_price=new_data['c'])
-                    self.exit_reset()
-                takeProfitPrice = self.entry_price / (1 + takeProfit)
-                stopLossPrice = self.entry_price / (1 + stopLoss)
-                takeProfitPrice_exec = self.entry_price / (1 + takeProfit * self.leverage)
-                stopLossPrice_exec = self.entry_price / (1 + stopLoss * self.leverage)
+                takeProfitPrice = self.entry_price / (1 + take_profit)
+                stopLossPrice = self.entry_price / (1 + stop_loss)
+                takeProfitPrice_exec = self.entry_price / (1 + take_profit * self.leverage)
+                stopLossPrice_exec = self.entry_price / (1 + stop_loss * self.leverage)
                 # Take profit / Stop loss
                 if new_data['h'] > stopLossPrice:
                     self.account.close_short_position('BTC', execution_price=stopLossPrice_exec)
@@ -104,23 +117,16 @@ class RandomForestStrategy(BaseStrategy):
                     self.account.close_short_position('BTC', execution_price=takeProfitPrice_exec)
                     self.exit_reset()
             if self.longing:
-                if self.holding_days > self.max_holding:
-                    # Force quit if holding too long
-                    self.account.close_long_position('BTC', execution_price=new_data['c'])
-                    self.exit_reset()
-                takeProfitPrice = self.entry_price * (1 + takeProfit)
-                stopLossPrice = self.entry_price * (1 + stopLoss)
-                takeProfitPrice_exec = self.entry_price * (1 + takeProfit * self.leverage)
-                stopLossPrice_exec = self.entry_price * (1 + stopLoss * self.leverage)
+                takeProfitPrice = self.entry_price * (1 + take_profit)
+                stopLossPrice = self.entry_price * (1 + stop_loss)
+                takeProfitPrice_exec = self.entry_price * (1 + take_profit * self.leverage)
+                stopLossPrice_exec = self.entry_price * (1 + stop_loss * self.leverage)
                 # Take profit / Stop loss
                 if new_data['l'] < stopLossPrice:
                     self.account.close_long_position('BTC', execution_price=stopLossPrice_exec)
                     self.exit_reset()
                 elif new_data['h'] > takeProfitPrice:
                     self.account.close_long_position('BTC', execution_price=takeProfitPrice_exec)
-                    self.exit_reset()
-                elif short_flag:
-                    self.account.close_long_position('BTC', execution_price= self.entry_price + self.leverage * (new_data['c'] - self.entry_price))
                     self.exit_reset()
         else:
             if short_flag:
