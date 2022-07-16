@@ -7,6 +7,9 @@ import tensorflow as tf
 from constants import ROOT_PATH
 import _pickle as cPickle
 import tensorflow_decision_forests as tfdf
+from numpy_ext import rolling_apply
+import numpy as np
+import math
 
 
 class RandomForestStrategy(BaseStrategy):
@@ -24,9 +27,11 @@ class RandomForestStrategy(BaseStrategy):
         self.max_holding = 9999999999999999
         self.high_volume_factor = 9
         self.leverage = leverage
-        model_path = "../modelHouse/rf_model_v0.2"
-        self.rf_model = tf.keras.models.load_model(model_path)
-        self.complex=complex
+        long_model_path = "../modelHouse/rf_long_model_v0.6"
+        self.rf_long_model = tf.keras.models.load_model(long_model_path)
+        short_model_path = "../modelHouse/rf_short_model_v0.6"
+        self.rf_short_model = tf.keras.models.load_model(short_model_path)
+        self.complex = complex
 
     def load_market(self, market, init_cash):
         super().load_market(market, init_cash)
@@ -59,6 +64,17 @@ class RandomForestStrategy(BaseStrategy):
         market_data.loc[:, 'ema'] = market_data['c'].ewm(span=emaLength, adjust=True).mean()
         return market_data.iloc[500:]
 
+    @staticmethod
+    def more_alpha(df):
+        # Alpha 6, ov against
+        df['alpha_6'] = -1 * rolling_apply(lambda x, y: np.corrcoef([x, y])[0, 1], 10, df.o.values, df.v.values)
+        # Alpha 12, cv momentem
+        df['1_v_log_ret'] = df['v'].rolling(2).apply(
+            lambda x: math.log(x.iloc[1] / x.iloc[0]) if x.iloc[1] / x.iloc[0] > 0 else 0)
+        df['1_c_log_ret'] = df['c'].rolling(2).apply(lambda x: math.log(x.iloc[1] / x.iloc[0]))
+        df['alpha_12'] = df.apply(lambda x: (1 if x['1_v_log_ret'] > 0 else -1) * -1 * x['1_c_log_ret'], axis=1)
+        return df.iloc[20:]
+
     def reset(self):
         self.last_data = None
         self.longing = False
@@ -88,45 +104,68 @@ class RandomForestStrategy(BaseStrategy):
             'l_relative': [new_data['l_relative']],
             'c_relative': [new_data['c_relative']],
             'v_relative': [new_data['v_relative']],
+            '10_c_log_return': [new_data['10_c_log_return']],
+            '30_c_log_return': [new_data['30_c_log_return']],
+            '60_c_log_return': [new_data['60_c_log_return']],
+            '10_c_bull': [new_data['60_c_log_return']],
+            '30_c_bull': [new_data['30_c_bull']],
+            '60_c_bull': [new_data['60_c_bull']],
             'long_signal': [new_data['long_signal']],
             'short_signal': [new_data['short_signal']],
+            'alpha_6': [new_data['alpha_6']],
+            'alpha_12': [new_data['alpha_12']],
         }
+        input_dict = {}
+        input_cols = ['vol_too_high', 'trend_bull', 'trend_bear', '10_c_log_return',
+                      '30_c_log_return', '60_c_log_return', '10_c_bull', '30_c_bull',
+                      '60_c_bull', 'bolling_bull', 'bolling_bear', 'o_relative', 'h_relative',
+                      'l_relative', 'c_relative', 'v_relative', 'long_signal', 'short_signal',
+                      'alpha_6', 'alpha_12']
+        for col in input_cols:
+            input_dict[col] = [new_data[col]]
         input_df = pd.DataFrame.from_dict(input_dict) * 1
         input_ds = tfdf.keras.pd_dataframe_to_tf_dataset(input_df)
-        results = self.rf_model.predict(input_ds)
-        result = results[0][0]
-        long_flag = False
-        short_flag = result >= 0.50
-        if self.complex:
-            short_flag = short_flag and new_data['trend_bear']
+
+        long_result = self.rf_long_model.predict(input_ds)[0][0]
+        short_result = self.rf_short_model.predict(input_ds)[0][0]
+
+        long_flag = long_result > 0.55
+        short_flag = short_result > 0.55
+        if long_flag and short_flag:
+            long_flag = long_result > short_result
+            short_flag = long_result <= short_result
 
         if self.shorting or self.longing:
             # Decide whether to exit
             take_profit = 0.10
             stop_loss = -0.05
             if self.shorting:
-                takeProfitPrice = self.entry_price / (1 + take_profit)
-                stopLossPrice = self.entry_price / (1 + stop_loss)
-                takeProfitPrice_exec = self.entry_price / (1 + take_profit * self.leverage)
-                stopLossPrice_exec = self.entry_price / (1 + stop_loss * self.leverage)
+                take_profit_price = self.entry_price / (1 + take_profit)
+                stop_loss_price = self.entry_price / (1 + stop_loss)
+                take_profit_price_exec = self.entry_price / (1 + take_profit * self.leverage)
+                stop_loss_price_exec = self.entry_price / (1 + stop_loss * self.leverage)
                 # Take profit / Stop loss
-                if new_data['h'] > stopLossPrice:
-                    self.account.close_short_position('BTC', execution_price=stopLossPrice_exec)
+                if new_data['h'] > stop_loss_price:
+                    self.account.close_short_position('BTC', execution_price=stop_loss_price_exec)
                     self.exit_reset()
-                elif new_data['l'] < takeProfitPrice:
-                    self.account.close_short_position('BTC', execution_price=takeProfitPrice_exec)
+                    if self.complex:
+                        self.leverage -= 0.1
+                elif new_data['l'] < take_profit_price:
+                    self.account.close_short_position('BTC', execution_price=take_profit_price_exec)
                     self.exit_reset()
+                    if self.complex:
+                        self.leverage += 0.1
             if self.longing:
-                takeProfitPrice = self.entry_price * (1 + take_profit)
-                stopLossPrice = self.entry_price * (1 + stop_loss)
-                takeProfitPrice_exec = self.entry_price * (1 + take_profit * self.leverage)
-                stopLossPrice_exec = self.entry_price * (1 + stop_loss * self.leverage)
+                take_profit_price = self.entry_price * (1 + take_profit)
+                stop_loss_price = self.entry_price * (1 + stop_loss)
+                take_profit_price_exec = self.entry_price * (1 + take_profit * self.leverage)
+                stop_loss_price_exec = self.entry_price * (1 + stop_loss * self.leverage)
                 # Take profit / Stop loss
-                if new_data['l'] < stopLossPrice:
-                    self.account.close_long_position('BTC', execution_price=stopLossPrice_exec)
+                if new_data['l'] < stop_loss_price:
+                    self.account.close_long_position('BTC', execution_price=stop_loss_price_exec)
                     self.exit_reset()
-                elif new_data['h'] > takeProfitPrice:
-                    self.account.close_long_position('BTC', execution_price=takeProfitPrice_exec)
+                elif new_data['h'] > take_profit_price:
+                    self.account.close_long_position('BTC', execution_price=take_profit_price_exec)
                     self.exit_reset()
         else:
             if short_flag:

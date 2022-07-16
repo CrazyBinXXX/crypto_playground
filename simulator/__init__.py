@@ -38,7 +38,8 @@ class Simulator:
 
     def random_slice(self, time_window):
         rand_start = random.randint(0, self.data_set.shape[0] - time_window - 1)
-        data = self.data_set.iloc[rand_start: rand_start + time_window]
+        print(self.data_set.head())
+        data = self.data_set.iloc[int(rand_start): int(rand_start + time_window)]
         print("random slice: ", rand_start, rand_start + time_window)
         return data
 

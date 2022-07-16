@@ -7,3 +7,4 @@ RUN pip install pandas
 RUN pip install scipy
 RUN pip install sklearn
 RUN pip install matplotlib
+RUN pip install numpy_ext
