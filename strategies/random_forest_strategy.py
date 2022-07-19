@@ -13,7 +13,7 @@ import math
 
 
 class RandomForestStrategy(BaseStrategy):
-    def __init__(self, leverage=1, complex=False):
+    def __init__(self, leverage=1, fast=False, complex=False):
         super().__init__()
         self.last_data = None
         self.longing = False
@@ -32,6 +32,7 @@ class RandomForestStrategy(BaseStrategy):
         short_model_path = "../modelHouse/rf_short_model_v0.6"
         self.rf_short_model = tf.keras.models.load_model(short_model_path)
         self.complex = complex
+        self.fast = fast
 
     def load_market(self, market, init_cash):
         super().load_market(market, init_cash)
@@ -93,41 +94,23 @@ class RandomForestStrategy(BaseStrategy):
         if self.holding_days > -1:
             self.holding_days += 1
         # Take Action
-        input_dict = {
-            'vol_too_high': [new_data['vol_too_high']],
-            'trend_bull': [new_data['trend_bull']],
-            'trend_bear': [new_data['trend_bear']],
-            'bolling_bull': [new_data['bolling_bull']],
-            'bolling_bear': [new_data['bolling_bear']],
-            'o_relative': [new_data['o_relative']],
-            'h_relative': [new_data['h_relative']],
-            'l_relative': [new_data['l_relative']],
-            'c_relative': [new_data['c_relative']],
-            'v_relative': [new_data['v_relative']],
-            '10_c_log_return': [new_data['10_c_log_return']],
-            '30_c_log_return': [new_data['30_c_log_return']],
-            '60_c_log_return': [new_data['60_c_log_return']],
-            '10_c_bull': [new_data['60_c_log_return']],
-            '30_c_bull': [new_data['30_c_bull']],
-            '60_c_bull': [new_data['60_c_bull']],
-            'long_signal': [new_data['long_signal']],
-            'short_signal': [new_data['short_signal']],
-            'alpha_6': [new_data['alpha_6']],
-            'alpha_12': [new_data['alpha_12']],
-        }
-        input_dict = {}
-        input_cols = ['vol_too_high', 'trend_bull', 'trend_bear', '10_c_log_return',
-                      '30_c_log_return', '60_c_log_return', '10_c_bull', '30_c_bull',
-                      '60_c_bull', 'bolling_bull', 'bolling_bear', 'o_relative', 'h_relative',
-                      'l_relative', 'c_relative', 'v_relative', 'long_signal', 'short_signal',
-                      'alpha_6', 'alpha_12']
-        for col in input_cols:
-            input_dict[col] = [new_data[col]]
-        input_df = pd.DataFrame.from_dict(input_dict) * 1
-        input_ds = tfdf.keras.pd_dataframe_to_tf_dataset(input_df)
+        if not self.fast:
+            input_dict = {}
+            input_cols = ['vol_too_high', 'trend_bull', 'trend_bear', '10_c_log_return',
+                          '30_c_log_return', '60_c_log_return', '10_c_bull', '30_c_bull',
+                          '60_c_bull', 'bolling_bull', 'bolling_bear', 'o_relative', 'h_relative',
+                          'l_relative', 'c_relative', 'v_relative', 'long_signal', 'short_signal',
+                          'alpha_6', 'alpha_12']
+            for col in input_cols:
+                input_dict[col] = [new_data[col]]
+            input_df = pd.DataFrame.from_dict(input_dict) * 1
+            input_ds = tfdf.keras.pd_dataframe_to_tf_dataset(input_df)
 
-        long_result = self.rf_long_model.predict(input_ds)[0][0]
-        short_result = self.rf_short_model.predict(input_ds)[0][0]
+            long_result = self.rf_long_model.predict(input_ds)[0][0]
+            short_result = self.rf_short_model.predict(input_ds)[0][0]
+        else:
+            long_result = new_data['long_score']
+            short_result = new_data['short_score']
 
         long_flag = long_result > 0.55
         short_flag = short_result > 0.55
