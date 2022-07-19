@@ -13,7 +13,7 @@ import math
 
 
 class RandomForestStrategy(BaseStrategy):
-    def __init__(self, leverage=1, complex=False):
+    def __init__(self, leverage=1, complex=False, realTest=False, cautiousness=0.55):
         super().__init__()
         self.last_data = None
         self.longing = False
@@ -32,37 +32,15 @@ class RandomForestStrategy(BaseStrategy):
         short_model_path = "../modelHouse/rf_short_model_v0.6"
         self.rf_short_model = tf.keras.models.load_model(short_model_path)
         self.complex = complex
+        self.realTest = realTest
+        self.cautiousness = cautiousness
 
     def load_market(self, market, init_cash):
         super().load_market(market, init_cash)
 
     @staticmethod
     def extend_market(market_data):
-        market_data.loc[:, 'o'] = market_data['o'].astype(float)
-        market_data.loc[:, 'h'] = market_data['h'].astype(float)
-        market_data.loc[:, 'l'] = market_data['l'].astype(float)
-        market_data.loc[:, 'c'] = market_data['c'].astype(float)
-        market_data.loc[:, 'v'] = market_data['v'].astype(float)
-        market_data.loc[:, 'ohlc'] = market_data.apply(lambda x: (x['o'] + x['h'] + x['l'] + x['c']) / 4, axis=1)
-        market_data.loc[:, 'bolling_m'] = market_data['c'].rolling(200).apply(lambda x: x.mean())
-        market_data.loc[:, 'bolling_2u'] = market_data['c'].rolling(200).apply(lambda x: x.mean() + 2 * x.std())
-        market_data.loc[:, 'bolling_2l'] = market_data['c'].rolling(200).apply(lambda x: x.mean() - 2 * x.std())
-        market_data.loc[:, 'volatility'] = market_data['bolling_2u'] - market_data['bolling_2l']
-        market_data.loc[:, 'base_vol'] = market_data['volatility'].rolling(2000).mean()
-        market_data.loc[:, 'base_vol'] = market_data['base_vol'].fillna(method='bfill')
-        market_data.loc[:, 'vol_too_high'] = market_data.apply(lambda x: x['volatility'] > 1.5 * x['base_vol'], axis=1)
-        market_data.loc[:, 'trendEMA'] = market_data['c'].ewm(span=1500, adjust=False).mean()
-        market_data.loc[:, 'trend_bull'] = market_data.apply(lambda x: x['c'] > x['trendEMA'], axis=1)
-        market_data.loc[:, 'trend_bear'] = market_data.apply(lambda x: x['c'] < x['trendEMA'], axis=1)
-        market_data['TR'] = market_data['h'] - market_data['l']
-        market_data['MATR'] = market_data['TR'].rolling(14).apply(lambda x: x.mean())
-        market_data['EATR'] = market_data['TR'].ewm(span=14, adjust=False).mean()
-        market_data.loc[:, '200_ma_volume'] = market_data['v'].rolling(200).apply(lambda x: x.mean())
-        smaLength = 20
-        emaLength = 21
-        market_data.loc[:, 'sma'] = market_data['c'].rolling(smaLength).apply(lambda x: x.mean())
-        market_data.loc[:, 'ema'] = market_data['c'].ewm(span=emaLength, adjust=True).mean()
-        return market_data.iloc[500:]
+        return market_data
 
     @staticmethod
     def more_alpha(df):
@@ -89,51 +67,36 @@ class RandomForestStrategy(BaseStrategy):
         self.entry_asset = -1
 
     def step(self):
-        new_data = self.market.get_next_data()
+        if not self.realTest:
+            new_data = self.market.get_next_data()
+        else:
+            new_data = self.market.get_next_data(2000)
         if self.holding_days > -1:
             self.holding_days += 1
         # Take Action
-        input_dict = {
-            'vol_too_high': [new_data['vol_too_high']],
-            'trend_bull': [new_data['trend_bull']],
-            'trend_bear': [new_data['trend_bear']],
-            'bolling_bull': [new_data['bolling_bull']],
-            'bolling_bear': [new_data['bolling_bear']],
-            'o_relative': [new_data['o_relative']],
-            'h_relative': [new_data['h_relative']],
-            'l_relative': [new_data['l_relative']],
-            'c_relative': [new_data['c_relative']],
-            'v_relative': [new_data['v_relative']],
-            '10_c_log_return': [new_data['10_c_log_return']],
-            '30_c_log_return': [new_data['30_c_log_return']],
-            '60_c_log_return': [new_data['60_c_log_return']],
-            '10_c_bull': [new_data['60_c_log_return']],
-            '30_c_bull': [new_data['30_c_bull']],
-            '60_c_bull': [new_data['60_c_bull']],
-            'long_signal': [new_data['long_signal']],
-            'short_signal': [new_data['short_signal']],
-            'alpha_6': [new_data['alpha_6']],
-            'alpha_12': [new_data['alpha_12']],
-        }
-        input_dict = {}
-        input_cols = ['vol_too_high', 'trend_bull', 'trend_bear', '10_c_log_return',
-                      '30_c_log_return', '60_c_log_return', '10_c_bull', '30_c_bull',
-                      '60_c_bull', 'bolling_bull', 'bolling_bear', 'o_relative', 'h_relative',
-                      'l_relative', 'c_relative', 'v_relative', 'long_signal', 'short_signal',
-                      'alpha_6', 'alpha_12']
-        for col in input_cols:
-            input_dict[col] = [new_data[col]]
-        input_df = pd.DataFrame.from_dict(input_dict) * 1
-        input_ds = tfdf.keras.pd_dataframe_to_tf_dataset(input_df)
+        if not self.realTest:
+            input_dict = {}
+            input_cols = ['vol_too_high', 'trend_bull', 'trend_bear', '10_c_log_return',
+                          '30_c_log_return', '60_c_log_return', '10_c_bull', '30_c_bull',
+                          '60_c_bull', 'bolling_bull', 'bolling_bear', 'o_relative', 'h_relative',
+                          'l_relative', 'c_relative', 'v_relative', 'long_signal', 'short_signal',
+                          'alpha_6', 'alpha_12']
+            for col in input_cols:
+                input_dict[col] = [new_data[col]]
+            input_df = pd.DataFrame.from_dict(input_dict) * 1
+            input_ds = tfdf.keras.pd_dataframe_to_tf_dataset(input_df)
 
-        long_result = self.rf_long_model.predict(input_ds)[0][0]
-        short_result = self.rf_short_model.predict(input_ds)[0][0]
+            long_result = self.rf_long_model.predict(input_ds)[0][0]
+            short_result = self.rf_short_model.predict(input_ds)[0][0]
 
-        long_flag = long_result > 0.55
-        short_flag = short_result > 0.55
-        if long_flag and short_flag:
-            long_flag = long_result > short_result
-            short_flag = long_result <= short_result
+            long_flag = long_result > 0.55
+            short_flag = short_result > 0.55
+            if long_flag and short_flag:
+                long_flag = long_result > short_result
+                short_flag = long_result <= short_result
+        else:
+            long_flag, short_flag = RandomForestStrategy.static_long_short_signal(new_data, self.rf_long_model,
+                                                                                  self.rf_short_model, self.cautiousness)
 
         if self.shorting or self.longing:
             # Decide whether to exit
@@ -185,6 +148,97 @@ class RandomForestStrategy(BaseStrategy):
         self.last_data = new_data
         self.started = True
         return 0
+
+    @staticmethod
+    def static_long_short_signal(recent_2000_df, long_model, short_model, cautiousness):
+        alphas = RandomForestStrategy.calc_alphas(recent_2000_df)
+        alphas_ds = tfdf.keras.pd_dataframe_to_tf_dataset(alphas)
+        long_model_result = long_model.predict(alphas_ds)[0][0]
+        short_model_result = short_model.predict(alphas_ds)[0][0]
+        long_signal = long_model_result > cautiousness
+        short_signal = short_model_result > cautiousness
+        if long_signal and short_signal:
+            long_signal = long_model_result > short_model_result
+            short_signal = long_model_result <= short_model_result
+        return long_signal, short_signal
+
+    @staticmethod
+    def calc_alphas(input):
+        output_dict = {}
+        output_cols = ['vol_too_high', 'trend_bull', 'trend_bear', '10_c_log_return',
+                       '30_c_log_return', '60_c_log_return', '10_c_bull', '30_c_bull',
+                       '60_c_bull', 'bolling_bull', 'bolling_bear', 'o_relative', 'h_relative',
+                       'l_relative', 'c_relative', 'v_relative', 'long_signal', 'short_signal',
+                       'alpha_6', 'alpha_12']
+        for col in output_cols:
+            output_dict[col] = []
+
+        input_df = input.copy()
+
+        input_df.loc[:, 'o'] = input_df['o'].astype(float)
+        input_df.loc[:, 'h'] = input_df['h'].astype(float)
+        input_df.loc[:, 'l'] = input_df['l'].astype(float)
+        input_df.loc[:, 'c'] = input_df['c'].astype(float)
+        input_df.loc[:, 'v'] = input_df['v'].astype(float)
+        input_df.loc[:, '200std'] = input_df.iloc[-200:]['c'].rolling(200).apply(lambda x: x.std())
+        input_df.loc[:, '200_v_std'] = input_df[-200:]['v'].rolling(200).apply(lambda x: x.std())
+        input_df.loc[:, '200_ma_volume'] = input_df[-200:]['v'].rolling(200).apply(lambda x: x.mean())
+        input_df.loc[:, 'bolling_m'] = input_df[-200:]['c'].rolling(200).apply(lambda x: x.mean())
+        input_df.loc[:, 'bolling_2u'] = input_df[-200:]['c'].rolling(200).apply(lambda x: x.mean() + 2 * x.std())
+        input_df.loc[:, 'bolling_2l'] = input_df['c'].rolling(200).apply(lambda x: x.mean() - 2 * x.std())
+        input_df.loc[:, 'volatility'] = input_df['bolling_2u'] - input_df['bolling_2l']
+        input_df.loc[:, 'base_vol'] = input_df['volatility'].rolling(2000).mean()
+        input_df.loc[:, 'base_vol'] = input_df['base_vol'].fillna(method='bfill')
+        input_df.loc[:, 'vol_too_high'] = input_df.apply(lambda x: x['volatility'] > 1.5 * x['base_vol'], axis=1)
+        input_df.loc[:, 'trendEMA'] = input_df['c'].ewm(span=1500, adjust=False).mean()
+        input_df.loc[:, 'trend_bull'] = input_df.apply(lambda x: x['c'] > x['trendEMA'], axis=1)
+        input_df.loc[:, 'trend_bear'] = input_df.apply(lambda x: x['c'] < x['trendEMA'], axis=1)
+        input_df['10_c_ma'] = input_df['c'].rolling(10).apply(lambda x: x.mean())
+        input_df['30_c_ma'] = input_df['c'].rolling(30).apply(lambda x: x.mean())
+        input_df['60_c_ma'] = input_df['c'].rolling(60).apply(lambda x: x.mean())
+        input_df['10_c_log_return'] = input_df['c'].rolling(10).apply(lambda x: math.log(x.iloc[9] / x.iloc[0]))
+        input_df['30_c_log_return'] = input_df['c'].rolling(30).apply(lambda x: math.log(x.iloc[29] / x.iloc[0]))
+        input_df['60_c_log_return'] = input_df['c'].rolling(60).apply(lambda x: math.log(x.iloc[59] / x.iloc[0]))
+
+        input_df['10_c_bull'] = input_df.apply(lambda x: x['c'] > x['10_c_ma'], axis=1)
+        input_df['30_c_bull'] = input_df.apply(lambda x: x['c'] > x['30_c_ma'], axis=1)
+        input_df['60_c_bull'] = input_df.apply(lambda x: x['c'] > x['60_c_ma'], axis=1)
+
+        input_df['10_c_log_return'] = input_df['c'].rolling(10).apply(lambda x: math.log(x.iloc[9] / x.iloc[0]))
+        input_df['30_c_log_return'] = input_df['c'].rolling(30).apply(lambda x: math.log(x.iloc[29] / x.iloc[0]))
+        input_df['60_c_log_return'] = input_df['c'].rolling(60).apply(lambda x: math.log(x.iloc[59] / x.iloc[0]))
+
+        input_df['bolling_bull'] = input_df.apply(lambda x: x['o'] < x['bolling_2l'] and x['c'] > x['bolling_2l'],
+                                                  axis=1)
+        input_df['bolling_bear'] = input_df.apply(lambda x: x['o'] > x['bolling_2u'] and x['c'] < x['bolling_2u'],
+                                                  axis=1)
+
+        input_df.loc[:, 'o_relative'] = input_df.apply(lambda x: (x['o'] - x['bolling_m']) / x['200std'], axis=1)
+        input_df.loc[:, 'h_relative'] = input_df.apply(lambda x: (x['h'] - x['bolling_m']) / x['200std'], axis=1)
+        input_df.loc[:, 'l_relative'] = input_df.apply(lambda x: (x['l'] - x['bolling_m']) / x['200std'], axis=1)
+        input_df.loc[:, 'c_relative'] = input_df.apply(lambda x: (x['c'] - x['bolling_m']) / x['200std'], axis=1)
+        input_df.loc[:, 'v_relative'] = input_df.apply(lambda x: (x['v'] - x['200_ma_volume']) / x['200_v_std'], axis=1)
+
+        input_df['long_signal'] = input_df.apply(
+            lambda x: x['bolling_bull'] and x['trend_bull'] and not x['vol_too_high'], axis=1)
+        input_df['short_signal'] = input_df.apply(
+            lambda x: x['bolling_bear'] and x['trend_bear'] and not x['vol_too_high'], axis=1)
+
+        # Alpha 6, ov against
+        input_df['alpha_6'] = -1 * rolling_apply(lambda x, y: np.corrcoef([x, y])[0, 1], 10, input_df.o.values,
+                                                 input_df.v.values)
+        # Alpha 12, cv momentem
+        input_df['1_v_log_ret'] = input_df['v'].rolling(2).apply(
+            lambda x: math.log(x.iloc[1] / x.iloc[0]) if x.iloc[1] / x.iloc[0] > 0 else 0)
+        input_df['1_c_log_ret'] = input_df['c'].rolling(2).apply(lambda x: math.log(x.iloc[1] / x.iloc[0]))
+        input_df['alpha_12'] = input_df.apply(lambda x: (1 if x['1_v_log_ret'] > 0 else -1) * -1 * x['1_c_log_ret'],
+                                              axis=1)
+
+        output_df = pd.DataFrame.from_dict(output_dict) * 1
+        last_row = input_df.iloc[-1]
+        for col in output_cols:
+            output_df[col] = [last_row[col]]
+        return output_df * 1
 
 
 if __name__ == "__main__":

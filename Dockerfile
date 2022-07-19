@@ -8,3 +8,5 @@ RUN pip install scipy
 RUN pip install sklearn
 RUN pip install matplotlib
 RUN pip install numpy_ext
+RUN pip install binance-futures-connector
+RUN pip install websocket-client
