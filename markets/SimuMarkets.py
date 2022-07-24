@@ -1,5 +1,7 @@
 import pandas as pd
-from fee import Fee
+
+from Fee import Fee
+
 
 class SimuMarket:
     def __init__(self):
@@ -18,7 +20,7 @@ class SimuMarket:
         self.call_back_list.append(func)
 
     def get_price(self):
-        pass # todo unimplemented
+        pass  # todo unimplemented
 
         return "PRICE"
 
@@ -45,10 +47,6 @@ class SimuMarket:
             self.order_list.pop(index)
         except ValueError as e:
             raise Exception(f"Order not found, {e}. This indicates bug.")
-
-    # markets stats. Todo, add account stats
-    def add_stats(self, order):
-        self.order_stats = pd.append() # todo append stats here
 
     def run(self):
         for _ in range(self.index, len(self.data)):

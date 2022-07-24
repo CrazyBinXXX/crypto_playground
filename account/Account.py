@@ -6,34 +6,52 @@ class FuturesAccount:
     def __init__(self, balance, market):
         self.balance = balance
         self.order_list = []
+        self.position = None  # LATER, support hedge mode
         self.market = market
 
-    def open_order(self, side: Side, margin, price, leverage, type):
-        if self.balance < margin:
-            raise Exception("Insufficient balance")
+    def open_order(self, side: Side, margin, price, order_type, leverage=1):
+        if self.position is not None:
+            if self.position.side == side and self.balance < margin:
+                raise Exception("Insufficient balance")
+            elif self.position.balance(price) < margin:
+                raise Exception(f"Insufficient position margin, {margin} > {self.position.balance(price)}")
 
         order = FuturesOrder(self)
-        order.open(side, price, margin, leverage, type)
-        self.balance -= order.margin
+
+        order.open(side, price, margin, order_type, leverage)
         self.order_list.append(order)
-        self.market.add_order(order)
+        if self.position is None:
+            self.balance -= order.margin
+
+        order.update_price(None)
 
         return order
 
-    def close_order(self, order: FuturesOrder):
-        if not order.is_open:
-            raise Exception("Order already closed")
-        if order.account != self:
-            raise Exception("Order doesn't belong")
+    def get_position(self) -> FuturesPosition:
+        assert self.position is not None, "Position is None. This is a bug."
+        return self.position
 
-        try:
-            idx = self.order_list.index(order)
-            self.order_list.remove(idx)
+    def add_position(self, position):
+        self.position = position
 
-            self.balance += order.close()
-            self.market.close_order(order)
-        except ValueError as e:
-            raise Exception(f"Order not found, {e}. This indicates bug.")
+    def remove_position(self):
+        self.balance += self.position.balance()
+        self.position = None
 
-    def order_list(self):
-        return self.order_list
+    def remove_order(self, order):
+        if order in self.order_list:
+            self.balance -= order.fee
+            return self.order_list.remove(order)
+        else:
+            assert False, "Order not found"
+
+    def update_price(self, price: KLine):
+        for order in self.order_list:
+            order.update_price(price)
+
+        if self.position is not None:
+            close, unrelized_pnl = self.position.update_price(price)
+            DATALOG.add_position(self.position.stats())
+            if close:
+                self.balance += self.position.balance()
+                self.position = None

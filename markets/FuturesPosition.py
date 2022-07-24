@@ -1,9 +1,9 @@
 from common.KLine import KLine
-from Side import Side
+from markets.Side import Side
 
 
 class FuturesPosition:
-    def __init__(self, entry_price, margin, size, open_timestamp, account, leverage=1):
+    def __init__(self, entry_price, margin, size, open_timestamp, leverage=1):
         self.max_gain = 0
         self.leverage = leverage
         self.entry_price = entry_price
@@ -13,10 +13,7 @@ class FuturesPosition:
         self.margin = margin
         self.unrealized_pnl = 0
         self.update_timestamp = open_timestamp
-        self.account = account
         self.max_withdraw = 0
-
-        self.account.add_position(self)
 
     def set_levearge(self, leverage):
         raise Exception("NOT supported yet")
@@ -24,16 +21,13 @@ class FuturesPosition:
 
     def __calc_pnl(self, end_price):
         price_diff = end_price - self.entry_price
-        unrealized_pnl = (price_diff * self.margin) * self.side * self.leverage
-        return unrealized_pnl
+        return (price_diff / self.entry_price * self.leverage) * self.margin
 
     def calc_unrelized_pnl(self, price: KLine):
         if not self.is_open:
             raise Exception("Order is not init.")
 
-        self.update_timestamp = price.timestamp
-        # todo, support multiple orders
-
+        # LATER, support multiple orders
         self.unrealized_pnl = self.__calc_pnl(price.close)
 
     def __calc_max_withdrawl(self, price: KLine):
@@ -54,12 +48,13 @@ class FuturesPosition:
 
     # update price, and return position is closed, and current balance.
     def update_price(self, price: KLine) -> (bool, float):
-        self.unrealized_pnl = self.calc_unrelized_pnl(price)
+        self.calc_unrelized_pnl(price)
         self.max_withdraw = self.__calc_max_withdrawl(price)
         if self.max_withdraw + self.margin <= 0:
             self.close()
             return True, self.balance()
         self.max_gain = self.__calc_max_unreliazed_margin(price)
+        self.update_timestamp = price.timestamp
 
         return False, self.balance()
 
@@ -73,9 +68,15 @@ class FuturesPosition:
             "timestamp": self.update_timestamp,
         }
 
-    def balance(self):
-        return self.margin + self.unrealized_pnl
+    def balance(self, price: float or None = None):
+        if price is None:
+            return self.margin + self.unrealized_pnl
+        else:
+            return self.margin + self.__calc_pnl(price)
 
-    def close(self):
+    def close(self, acting_price: float or None = None):
         self.is_open = False
+        if acting_price is not None:
+            self.unrealized_pnl = self.__calc_pnl(acting_price)
+
         return self.balance()
