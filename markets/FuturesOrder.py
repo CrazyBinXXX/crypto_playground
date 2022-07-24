@@ -15,8 +15,7 @@ class OrderType(IntEnum):
     LIMIT_HIGHER = 4,
 
     TAKER_START = 5,  # taker under this
-    MARKET_BUY = 6,
-    MARKET_SELL = 7,
+    MARKET = 6,
     TAKE_PROFIT_MARKET = 8,
     STOP_LOSS_MARKET = 9,
 
@@ -39,7 +38,7 @@ class FuturesOrder:
 
     def check_order(self):
         if __name__ == '__main__':
-            if self.type == OrderType.MARKET_BUY:
+            if self.type == OrderType.MARKET:
                 if self.account.get_position() is not None:
                     raise Exception("Order cannot be placed, position existed")
                 if self.account.balance < self.margin:
@@ -65,7 +64,7 @@ class FuturesOrder:
         self.is_filled = True
         self.calc_fee(self.margin)
 
-        if self.type == OrderType.MARKET_BUY:
+        if self.type == OrderType.MARKET:
             position = FuturesPosition(self.trigger_price, self.margin, self.margin / self.trigger_price * self.side,
                                        self.timestamp, self.leverage)
             self.account.add_position(position)
@@ -83,7 +82,7 @@ class FuturesOrder:
         if self.type < OrderType.MAKER_START:
             raise Exception("NOT SUPPORTED RIGHT NOW")
 
-        if self.type == OrderType.MARKET_BUY:
+        if self.type == OrderType.MARKET:
             self.__fill()
             return
 

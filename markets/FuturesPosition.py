@@ -20,7 +20,7 @@ class FuturesPosition:
         # self.leverage = leverage
 
     def __calc_pnl(self, end_price):
-        price_diff = end_price - self.entry_price
+        price_diff = (end_price - self.entry_price) * self.side
         return (price_diff / self.entry_price * self.leverage) * self.margin
 
     def calc_unrelized_pnl(self, price: KLine):
