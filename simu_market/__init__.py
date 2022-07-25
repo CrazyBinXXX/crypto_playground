@@ -20,6 +20,9 @@ class SimuMarket:
         self.data_shape = None
         self.iter_idx = 0
 
+    def set_idx(self, idx):
+        self.iter_idx = idx
+
     def reset_idx(self):
         self.iter_idx = 0
 
@@ -76,7 +79,7 @@ class SimuMarket:
     def get_cur_price(self, symbol):
         return self.df_data.iloc[min(self.iter_idx, self.df_data.shape[0] - 1)]
 
-    def get_next_data(self):
+    def get_next_data(self, num=1):
         """
         Get data of next timestamp.
 
@@ -84,7 +87,7 @@ class SimuMarket:
         """
         if self.iter_idx >= self.data_shape[0]:
             raise SimulationEndException('The simulation should end now')
-        ret = self.df_data.iloc[self.iter_idx]
+        ret = self.df_data.iloc[max(self.iter_idx - num + 1, 0): self.iter_idx + 1]
         self.iter_idx += 1
         return ret
 

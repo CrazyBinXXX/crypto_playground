@@ -25,14 +25,16 @@ from strategies.svm_strategy import SVMStrategy
 
 
 class Simulator:
-    def __init__(self, data_set, strategy_list):
+    def __init__(self, data_set, strategy_list, start_idx=0):
         self.data_set = data_set
         self.strategy_list = strategy_list
         self.init_cash = 10000
+        self.start_idx = start_idx
 
     def reset(self, time_window=10000):
         market = SimuMarket()
         market.load_df(self.random_slice(time_window))
+        market.set_idx(self.start_idx)
         for strategy in self.strategy_list:
             strategy.load_market(copy.deepcopy(market), self.init_cash)
 
