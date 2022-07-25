@@ -14,13 +14,13 @@ from utils import get_data
 if __name__ == "__main__":
     print('ML backtest started:')
     intervals1 = ['2017-07-10', '2022-07-10']
-    data, extended_data = get_data('BTCUSDT', intervals1[0], intervals1[1], '15m', True, 'learning_prepared_v0.6_predicted', MAShortStrategy.extend_market)
-    extended_data = extended_data.iloc[-4 * 24 * 30 * 12 * 1 // 2:]
-    strat_rf = RandomForestStrategy(fast=False)
+    data, extended_data = get_data('BTCUSDT', intervals1[0], intervals1[1], '15m', True, 'learning_prepared_v1.0_predicted', MAShortStrategy.extend_market)
+    extended_data = extended_data.iloc[-4 * 24 * 30 * 12 * 1:]
+    strat_rf = RandomForestStrategy(fast=True)
 
     strat_list = [strat_rf]
 
-    steps = 4 * 24 * 30 * 12 * 1 / 2 - 1
+    steps = 4 * 24 * 30 * 12 * 1 // 12 - 3
     s = Simulator(extended_data, strat_list)
     norm_price, hist_asset, norm_report, hist_report = s.backtest(num_timestamps=steps)
 

@@ -27,9 +27,9 @@ class RandomForestStrategy(BaseStrategy):
         self.max_holding = 9999999999999999
         self.high_volume_factor = 9
         self.leverage = leverage
-        long_model_path = "../modelHouse/rf_long_model_v0.6"
+        long_model_path = "../modelHouse/rf_long_model_v0.7_5min"
         self.rf_long_model = tf.keras.models.load_model(long_model_path)
-        short_model_path = "../modelHouse/rf_short_model_v0.6"
+        short_model_path = "../modelHouse/rf_short_model_v0.7_5min"
         self.rf_short_model = tf.keras.models.load_model(short_model_path)
         self.complex = complex
         self.fast = fast
@@ -112,16 +112,14 @@ class RandomForestStrategy(BaseStrategy):
             long_result = new_data['long_score']
             short_result = new_data['short_score']
 
-        long_flag = long_result > 0.55
-        short_flag = short_result > 0.55
-        if long_flag and short_flag:
-            long_flag = long_result > short_result
-            short_flag = long_result <= short_result
+        gap = 0.0
+        long_flag = long_result > 0.55 and long_result > short_result + gap
+        short_flag = short_result > 0.55 and short_result > long_result + gap
 
         if self.shorting or self.longing:
             # Decide whether to exit
-            take_profit = 0.10
-            stop_loss = -0.05
+            take_profit = 0.05
+            stop_loss = -0.025
             if self.shorting:
                 take_profit_price = self.entry_price / (1 + take_profit)
                 stop_loss_price = self.entry_price / (1 + stop_loss)

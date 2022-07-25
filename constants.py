@@ -4,5 +4,5 @@ import os
 UNKNOWN_COIN = "UNKNOWN_COIN_ERROR"
 ROOT_PATH = "/Users/pengbin/Workspace/crypto_playground"
 SIMULATION_END = 27539
-SPOT_FEE = 0.000
+SPOT_FEE = 0.00035
 MARKET_ORDER_PENALTY = 0

@@ -38,6 +38,7 @@ class TradeInfo:
                 'Profit: {0}\n'.format(self.profit) + \
                 'Return: {0}%\n'.format(round((self.profit / (self.value - self.profit)) * 100, 2))
 
+
 def default_account():
     ret = {"Long Positions": LongPositionInfo(), "Short Positions": ShortPositionInfo()}
     return ret
@@ -134,8 +135,8 @@ class ContractAccount(BaseAccount):
         print("Num of Trades:")
         print(self.trade_num // 2)
         print("Each trade:")
-        for trade in self.trade_history:
-            if trade.profit != 0:
+        for i, trade in enumerate(self.trade_history):
+            # if trade.profit != 0:
                 print(trade)
         print("Total trading cost:")
         print(self.trading_fee)
