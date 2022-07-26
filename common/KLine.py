@@ -5,3 +5,7 @@ class KLine:
         self.open = o
         self.close = c
         self.timestamp = t
+        self.data = None
+
+    def set_data(self, data):
+        self.data = data

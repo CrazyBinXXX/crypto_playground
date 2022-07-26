@@ -19,10 +19,19 @@ class OrderType(IntEnum):
     TAKE_PROFIT_MARKET = 8,
     STOP_LOSS_MARKET = 9,
 
+    @staticmethod
+    def priority(order_type):
+        if order_type == OrderType.MARKET:
+            return 0
+        else:
+            return 1
+
 
 # Only supports non-hedge mode. And only one position shall exist.
 # Only supports MAKET order partially.
 class FuturesOrder:
+    order_id = 0
+
     def __init__(self, account):
         self.side: Side = Side.BUY  # 1 for buy, -1 for sell
         self.unrealized_pnl = 0
@@ -35,6 +44,10 @@ class FuturesOrder:
         self.timestamp = None
         self.type = None
         self.fee = 0
+        self.is_cancel = False
+
+        FuturesOrder.order_id += 1
+        self.order_id = FuturesOrder.order_id
 
     def check_order(self):
         if __name__ == '__main__':
@@ -47,11 +60,12 @@ class FuturesOrder:
                 if self.account.get_position() is None:
                     raise Exception("Order not exist")
 
-    def open(self, side, trigger_price, margin, order_type: OrderType, leverage=1):
+    def open(self, side, trigger_price, margin, order_type: OrderType, timestamp, leverage=1):
         self.side = side
         self.trigger_price = trigger_price
         self.margin = margin
         self.leverage = leverage
+        self.timestamp = timestamp
         self.type = order_type
         self.size = margin / trigger_price
 
@@ -60,14 +74,18 @@ class FuturesOrder:
 
         self.check_order()
 
-    def __fill(self):
+    def fill(self):
         self.is_filled = True
         self.calc_fee(self.margin)
 
-        if self.type == OrderType.MARKET:
+        if self.type == OrderType.MARKET and self.account.get_position() is None:
             position = FuturesPosition(self.trigger_price, self.margin, self.margin / self.trigger_price * self.side,
                                        self.timestamp, self.leverage)
             self.account.add_position(position)
+        elif self.type == OrderType.MARKET and self.account.get_position() is not None:
+            position = self.account.get_position()
+            position.close(self.trigger_price)
+            self.account.remove_position()
 
         self.account.remove_order(self)
 
@@ -83,24 +101,21 @@ class FuturesOrder:
             raise Exception("NOT SUPPORTED RIGHT NOW")
 
         if self.type == OrderType.MARKET:
-            self.__fill()
-            return
-
-        if price is None:
-            return
+            assert False, "Not possible"
 
         acting_price = self.get_acting_benifit_price(price)
-        if self.__is_triggering_on_acting_price(acting_price):
+        if self.__is_triggering_on_acting_price(acting_price) and self.account.get_position() is not None:
             self.account.get_position().close(acting_price)
             self.calc_fee(acting_price * self.size)
             self.account.remove_position()
+            self.is_filled = True
             self.account.remove_order(self)
 
     def get_acting_benifit_price(self, price: KLine):
         if self.type == OrderType.TAKE_PROFIT_MARKET:
             return max(price.low, self.trigger_price) if self.side == Side.BUY else min(price.high, self.trigger_price)
         elif self.type == OrderType.STOP_LOSS_MARKET:
-            return max(price.low, self.trigger_price) if self.side == Side.BUY else min(price.high, self.trigger_price)
+            return min(price.low, self.trigger_price) if self.side == Side.BUY else max(price.high, self.trigger_price)
         else:
             raise Exception("NOT SUPPORTED")
 
@@ -124,6 +139,11 @@ class FuturesOrder:
             "leverage": self.leverage,
             "filled": self.is_filled,
             "unrealized_pnl": self.unrealized_pnl,
-            "timestamp": self.timestamp,
+            "timestamp": str(self.timestamp),
+            "order_id": self.order_id,
+            "type": self.type,
             "fee": self.fee,
+            "price": self.trigger_price,
+            "side": self.side,
+            "canceled": self.is_cancel,
         }
