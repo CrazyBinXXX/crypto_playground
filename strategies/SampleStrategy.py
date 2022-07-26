@@ -10,6 +10,9 @@ class SampleStrategy:
         # strategy logic goes here
         print(data.data)
 
+        # open order
+        # self.account.open_order(...parameters)
+
 
 if __name__ == '__main__':
     market = SimuMarket()
