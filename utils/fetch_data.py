@@ -41,5 +41,5 @@ def fetch_large(client, symbol, lim, times, minutes_interval=15):
 # TEST PART
 if __name__ == '__main__':
     um_futures_client = UMFutures(key=None, secret=None, base_url="https://fapi.binance.com")
-    recent_prices = fetch_large(um_futures_client, 'BTCBUSD', 500, 60 * 24 * 365 // 500, 1)
-    recent_prices.to_csv("/Users/borischen/PycharmProjects/crypto_backtest/data/last_500min.csv", index=False)
+    recent_prices = fetch_large(um_futures_client, 'DOGEBUSD', 500, 60 * 24 * 365 // 500, 1)
+    recent_prices.to_csv("/Users/borischen/PycharmProjects/crypto_backtest/data/last_500min_doge_busd.csv", index=False)

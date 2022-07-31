@@ -23,8 +23,10 @@ class OrderType(IntEnum):
     def priority(order_type):
         if order_type == OrderType.MARKET:
             return 0
-        else:
+        if order_type == OrderType.STOP_LOSS_MARKET:
             return 1
+        else:
+            return 2
 
 
 # Only supports non-hedge mode. And only one position shall exist.
@@ -76,7 +78,7 @@ class FuturesOrder:
 
     def fill(self):
         self.is_filled = True
-        self.calc_fee(self.margin)
+        self.calc_fee(self.margin * self.leverage)
 
         if self.type == OrderType.MARKET and self.account.get_position() is None:
             position = FuturesPosition(self.trigger_price, self.margin, self.margin / self.trigger_price * self.side,
