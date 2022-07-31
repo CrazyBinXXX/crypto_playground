@@ -14,7 +14,7 @@ import math
 
 class RandomForestStrategy(BaseStrategy):
 
-    def __init__(self, leverage=1, fast=False, complex=False, realTest=False, cautiousness=0.55):
+    def __init__(self, leverage=1, fast=False, complex=False, realTest=False, cautiousness=0.5):
         super().__init__()
         self.last_data = None
         self.longing = False
@@ -28,9 +28,9 @@ class RandomForestStrategy(BaseStrategy):
         self.max_holding = 9999999999999999
         self.high_volume_factor = 9
         self.leverage = leverage
-        long_model_path = "../modelHouse/rf_long_model_v0.7_5min"
+        long_model_path = "../modelHouse/rf_long_model_5min_v0.5"
         self.rf_long_model = tf.keras.models.load_model(long_model_path)
-        short_model_path = "../modelHouse/rf_short_model_v0.7_5min"
+        short_model_path = "../modelHouse/rf_short_model_5min_v0.5"
         self.rf_short_model = tf.keras.models.load_model(short_model_path)
         self.complex = complex
         self.fast = fast
@@ -70,7 +70,7 @@ class RandomForestStrategy(BaseStrategy):
 
     def step(self):
         if not self.realTest:
-            new_data = self.market.get_next_data()
+            new_data = self.market.get_next_data().iloc[0]
         else:
             new_data = self.market.get_next_data(2000)
         if self.holding_days > -1:
@@ -95,13 +95,14 @@ class RandomForestStrategy(BaseStrategy):
             short_result = new_data['short_score']
 
         gap = 0.0
-        long_flag = long_result > 0.55 and long_result > short_result + gap
-        short_flag = short_result > 0.55 and short_result > long_result + gap
+        # long_flag = long_result > self.cautiousness and long_result > short_result + gap
+        long_flag = False
+        short_flag = short_result > self.cautiousness and short_result > long_result + gap
 
         if self.shorting or self.longing:
             # Decide whether to exit
-            take_profit = 0.05
-            stop_loss = -0.025
+            take_profit = 0.02
+            stop_loss = -0.01
             if self.shorting:
                 take_profit_price = self.entry_price / (1 + take_profit)
                 stop_loss_price = self.entry_price / (1 + stop_loss)

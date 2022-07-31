@@ -136,7 +136,7 @@ class ContractAccount(BaseAccount):
         print(self.trade_num // 2)
         print("Each trade:")
         for i, trade in enumerate(self.trade_history):
-            # if trade.profit != 0:
+            if trade.profit != 0:
                 print(trade)
         print("Total trading cost:")
         print(self.trading_fee)
